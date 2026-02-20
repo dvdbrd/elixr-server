@@ -1,0 +1,13 @@
+<div class="h-screen overflow-hidden">
+  <.main_layout
+    current_user={assigns[:current_user]}
+    active_section={assigns[:active_section]}
+    active_subsection={assigns[:active_subsection]}
+    received_offers={assigns[:received_offers]}
+    sent_offers={assigns[:sent_offers]}
+    accepted_offers={assigns[:accepted_offers]}
+    flash={assigns[:flash] || %{}}
+  >
+    {@inner_content}
+  </.main_layout>
+</div>

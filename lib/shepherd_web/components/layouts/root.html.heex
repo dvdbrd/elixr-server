@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <%= if assigns[:current_user] do %>
+      <meta name="user-token" content={Phoenix.Token.sign(ShepherdWeb.Endpoint, "user socket", @current_user.id)} />
+      <meta name="current-user-id" content={@current_user.id} />
+    <% end %>
+
+    <%!-- Page Title --%>
+    <.live_title default="Shepherd - Your App Title">
+      {assigns[:page_title]}
+    </.live_title>
+
+    <%!-- Meta Description --%>
+    <%= if assigns[:meta_description] do %>
+      <meta name="description" content={@meta_description} />
+    <% else %>
+      <meta name="description" content="Shepherd - Your application description" />
+    <% end %>
+
+    <%!-- Meta Keywords --%>
+    <%= if assigns[:meta_keywords] do %>
+      <meta name="keywords" content={@meta_keywords} />
+    <% end %>
+
+    <%!-- Canonical URL --%>
+    <%= if assigns[:canonical_url] do %>
+      <link rel="canonical" href={@canonical_url} />
+    <% end %>
+
+    <%!-- Open Graph Tags --%>
+    <%= if assigns[:og_title] do %>
+      <meta property="og:title" content={@og_title} />
+    <% else %>
+      <meta property="og:title" content="Shepherd - Your App Title" />
+    <% end %>
+
+    <%= if assigns[:og_description] do %>
+      <meta property="og:description" content={@og_description} />
+    <% else %>
+      <meta property="og:description" content="Shepherd - Your application description" />
+    <% end %>
+
+    <%= if assigns[:og_image] do %>
+      <meta property="og:image" content={@og_image} />
+    <% end %>
+
+    <%= if assigns[:og_url] do %>
+      <meta property="og:url" content={@og_url} />
+    <% end %>
+
+    <meta property="og:type" content={assigns[:og_type] || "website"} />
+    <meta property="og:site_name" content="Shepherd" />
+
+    <%!-- Twitter Card Tags --%>
+    <meta name="twitter:card" content="summary_large_image" />
+    <%= if assigns[:twitter_title] do %>
+      <meta name="twitter:title" content={@twitter_title} />
+    <% else %>
+      <meta name="twitter:title" content="Shepherd - Your App Title" />
+    <% end %>
+
+    <%= if assigns[:twitter_description] do %>
+      <meta name="twitter:description" content={@twitter_description} />
+    <% else %>
+      <meta name="twitter:description" content="Shepherd - Your application description" />
+    <% end %>
+
+    <%= if assigns[:twitter_image] do %>
+      <meta name="twitter:image" content={@twitter_image} />
+    <% end %>
+
+    <%!-- Structured Data --%>
+    <%= if assigns[:structured_data] do %>
+      <script type="application/ld+json">
+        <%= raw @structured_data %>
+      </script>
+    <% end %>
+
+    <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
+    </script>
+    <script>
+      (() => {
+        const setTheme = (theme) => {
+          if (theme === "system") {
+            localStorage.removeItem("phx:theme");
+            document.documentElement.removeAttribute("data-theme");
+          } else {
+            localStorage.setItem("phx:theme", theme);
+            document.documentElement.setAttribute("data-theme", theme);
+          }
+        };
+        setTheme(localStorage.getItem("phx:theme") || "system");
+        window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
+        window.addEventListener("phx:set-theme", ({ detail: { theme } }) => setTheme(theme));
+      })();
+    </script>
+  </head>
+  <body class="h-full antialiased bg-terminal text-green-500">
+    <div data-route={assigns[:conn] && @conn.request_path || ""}>
+      {@inner_content}
+    </div>
+  </body>
+</html>
