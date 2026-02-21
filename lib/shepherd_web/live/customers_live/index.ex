@@ -3,11 +3,14 @@ defmodule ShepherdWeb.CustomersLive.Index do
 
   @impl true
   def mount(params, _session, socket) do
+    user_id = socket.assigns.current_scope.user.id
+
     socket =
       socket
       |> assign(:page_title, "Customers")
       |> assign(:active_section, "customers")
       |> assign(:active_tab, params["tab"])
+      |> assign(:user_id, user_id)
 
     {:ok, socket}
   end
@@ -47,16 +50,19 @@ defmodule ShepherdWeb.CustomersLive.Index do
 
               <div class="space-y-3 max-w-3xl">
                 <.command_card
+                  id="cust-support-1"
                   title="Respond to support ticket #1247 about billing discrepancy"
                   explanation="Customer reports double charge on their invoice, investigate and resolve the billing issue"
                 />
 
                 <.command_card
+                  id="cust-support-2"
                   title="Send onboarding email sequence to 15 new customers"
                   explanation="Trigger welcome email series for customers who signed up in the last 24 hours"
                 />
 
                 <.command_card
+                  id="cust-support-3"
                   title="Schedule quarterly business review with top 3 accounts"
                   explanation="Book QBR meetings with Enterprise Corp, Tech Solutions Inc, and Global Systems Ltd"
                 />
@@ -137,6 +143,18 @@ defmodule ShepherdWeb.CustomersLive.Index do
   @impl true
   def handle_event("change_tab", %{"tab" => tab}, socket) do
     {:noreply, push_patch(socket, to: ~p"/customers?tab=#{tab}")}
+  end
+
+  def handle_event("command_done", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command marked as done")}
+  end
+
+  def handle_event("command_dismiss", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command dismissed")}
+  end
+
+  def handle_event("command_push", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command pushed to queue")}
   end
 
   defp customers_sidebar(assigns) do
@@ -252,6 +270,7 @@ defmodule ShepherdWeb.CustomersLive.Index do
 
   attr :title, :string, required: true
   attr :explanation, :string, required: true
+  attr :id, :string, required: true
 
   defp command_card(assigns) do
     ~H"""
@@ -272,13 +291,25 @@ defmodule ShepherdWeb.CustomersLive.Index do
         </div>
 
         <div class="flex gap-2 justify-end">
-          <button class="border border-green-400 text-green-400 px-3 py-1 text-xs hover:bg-green-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_done"
+            phx-value-id={@id}
+            class="border border-green-400 text-green-400 px-3 py-1 text-xs hover:bg-green-900 hover:bg-opacity-20 uppercase"
+          >
             [Done]
           </button>
-          <button class="border border-red-500 text-red-500 px-3 py-1 text-xs hover:bg-red-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_dismiss"
+            phx-value-id={@id}
+            class="border border-red-500 text-red-500 px-3 py-1 text-xs hover:bg-red-900 hover:bg-opacity-20 uppercase"
+          >
             [No]
           </button>
-          <button class="border border-yellow-500 text-yellow-500 px-3 py-1 text-xs hover:bg-yellow-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_push"
+            phx-value-id={@id}
+            class="border border-yellow-500 text-yellow-500 px-3 py-1 text-xs hover:bg-yellow-900 hover:bg-opacity-20 uppercase"
+          >
             [Push]
           </button>
         </div>

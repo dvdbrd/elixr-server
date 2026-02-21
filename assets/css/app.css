@@ -123,14 +123,20 @@
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
 }
 
-.text-green-500,
-.border-green-500 {
+.text-green-500 {
   text-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
 }
 
-.text-red-500,
-.border-red-500 {
+.border-green-500 {
+  box-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
+}
+
+.text-red-500 {
   text-shadow: 0 0 5px rgba(239, 68, 68, 0.5);
+}
+
+.border-red-500 {
+  box-shadow: 0 0 5px rgba(239, 68, 68, 0.5);
 }
 
 .scanlines {
@@ -175,4 +181,20 @@
 
 .terminal-screen {
   animation: flicker 0.15s infinite;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .scanlines,
+  .terminal-screen,
+  [class*="animate-"] {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Focus-visible outlines for keyboard navigation */
+:focus-visible {
+  outline: 2px solid #22c55e;
+  outline-offset: 2px;
 }

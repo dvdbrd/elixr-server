@@ -135,8 +135,13 @@ defmodule ShepherdWeb.HqLive.Index4 do
           <div class="flex items-center justify-center h-full">
             <div class="text-center border-2 border-green-500 p-12">
               <div class="text-4xl mb-4">✓</div>
-              <div class="text-lg font-bold mb-2">NO ACTIVE FEEDBACK</div>
-              <div class="text-xs opacity-60">Your manager has nothing to say right now</div>
+              <%= if @view_mode == "active" do %>
+                <div class="text-lg font-bold mb-2">NO ACTIVE FEEDBACK</div>
+                <div class="text-xs opacity-60">Your manager has nothing to say right now</div>
+              <% else %>
+                <div class="text-lg font-bold mb-2">NO FEEDBACK HISTORY</div>
+                <div class="text-xs opacity-60">No feedback records found</div>
+              <% end %>
             </div>
           </div>
         <% else %>

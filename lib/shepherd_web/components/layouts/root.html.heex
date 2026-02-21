@@ -10,7 +10,7 @@
     <% end %>
 
     <%!-- Page Title --%>
-    <.live_title default="Shepherd - Your App Title">
+    <.live_title default="Shepherd - AI-powered website conversion analysis">
       {assigns[:page_title]}
     </.live_title>
 
@@ -18,7 +18,7 @@
     <%= if assigns[:meta_description] do %>
       <meta name="description" content={@meta_description} />
     <% else %>
-      <meta name="description" content="Shepherd - Your application description" />
+      <meta name="description" content="Shepherd - AI-powered website conversion analysis" />
     <% end %>
 
     <%!-- Meta Keywords --%>
@@ -35,13 +35,13 @@
     <%= if assigns[:og_title] do %>
       <meta property="og:title" content={@og_title} />
     <% else %>
-      <meta property="og:title" content="Shepherd - Your App Title" />
+      <meta property="og:title" content="Shepherd - AI-powered website conversion analysis" />
     <% end %>
 
     <%= if assigns[:og_description] do %>
       <meta property="og:description" content={@og_description} />
     <% else %>
-      <meta property="og:description" content="Shepherd - Your application description" />
+      <meta property="og:description" content="Shepherd - AI-powered website conversion analysis" />
     <% end %>
 
     <%= if assigns[:og_image] do %>
@@ -60,13 +60,13 @@
     <%= if assigns[:twitter_title] do %>
       <meta name="twitter:title" content={@twitter_title} />
     <% else %>
-      <meta name="twitter:title" content="Shepherd - Your App Title" />
+      <meta name="twitter:title" content="Shepherd - AI-powered website conversion analysis" />
     <% end %>
 
     <%= if assigns[:twitter_description] do %>
       <meta name="twitter:description" content={@twitter_description} />
     <% else %>
-      <meta name="twitter:description" content="Shepherd - Your application description" />
+      <meta name="twitter:description" content="Shepherd - AI-powered website conversion analysis" />
     <% end %>
 
     <%= if assigns[:twitter_image] do %>
@@ -76,7 +76,7 @@
     <%!-- Structured Data --%>
     <%= if assigns[:structured_data] do %>
       <script type="application/ld+json">
-        <%= raw @structured_data %>
+        {Jason.encode!(@structured_data)}
       </script>
     <% end %>
 
@@ -101,7 +101,10 @@
     </script>
   </head>
   <body class="h-full antialiased bg-terminal text-green-500">
-    <div data-route={assigns[:conn] && @conn.request_path || ""}>
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:p-4 focus:bg-black focus:text-green-400">
+      Skip to main content
+    </a>
+    <div id="main-content" data-route={assigns[:conn] && @conn.request_path || ""}>
       {@inner_content}
     </div>
   </body>

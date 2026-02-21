@@ -346,6 +346,12 @@ defmodule ShepherdWeb.HqLive.Index3 do
         </div>
       </div>
 
+      <%= if @signals == [] do %>
+        <div class="text-center py-8 opacity-40 text-sm border border-green-500 border-opacity-30">
+          No pending signals. All clear.
+        </div>
+      <% end %>
+
       <!-- Domain Pulse Cards -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <%= for domain <- @domain_pulse do %>

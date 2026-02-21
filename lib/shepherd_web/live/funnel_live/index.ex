@@ -3,11 +3,14 @@ defmodule ShepherdWeb.FunnelLive.Index do
 
   @impl true
   def mount(params, _session, socket) do
+    user_id = socket.assigns.current_scope.user.id
+
     socket =
       socket
       |> assign(:page_title, "Funnel")
       |> assign(:active_section, "funnel")
       |> assign(:active_tab, params["tab"])
+      |> assign(:user_id, user_id)
 
     {:ok, socket}
   end
@@ -47,16 +50,19 @@ defmodule ShepherdWeb.FunnelLive.Index do
 
               <div class="space-y-3 max-w-3xl">
                 <.command_card
+                  id="funnel-funnels-1"
                   title="Create lead magnet funnel for email list growth"
                   explanation="Build a 3-page funnel with opt-in page, thank you page, and email sequence for capturing leads"
                 />
 
                 <.command_card
+                  id="funnel-funnels-2"
                   title="Optimize checkout flow for 30% conversion increase"
                   explanation="Redesign product purchase funnel to reduce friction and improve conversion rate from 5% to 6.5%"
                 />
 
                 <.command_card
+                  id="funnel-funnels-3"
                   title="Launch webinar registration funnel for Q1 event"
                   explanation="Create automated webinar funnel with registration, reminder sequence, and replay pages"
                 />
@@ -128,6 +134,18 @@ defmodule ShepherdWeb.FunnelLive.Index do
   @impl true
   def handle_event("change_tab", %{"tab" => tab}, socket) do
     {:noreply, push_patch(socket, to: ~p"/funnel?tab=#{tab}")}
+  end
+
+  def handle_event("command_done", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command marked as done")}
+  end
+
+  def handle_event("command_dismiss", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command dismissed")}
+  end
+
+  def handle_event("command_push", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command pushed to queue")}
   end
 
   defp funnel_sidebar(assigns) do
@@ -230,6 +248,7 @@ defmodule ShepherdWeb.FunnelLive.Index do
 
   attr :title, :string, required: true
   attr :explanation, :string, required: true
+  attr :id, :string, required: true
 
   defp command_card(assigns) do
     ~H"""
@@ -250,13 +269,25 @@ defmodule ShepherdWeb.FunnelLive.Index do
         </div>
 
         <div class="flex gap-2 justify-end">
-          <button class="border border-green-400 text-green-400 px-3 py-1 text-xs hover:bg-green-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_done"
+            phx-value-id={@id}
+            class="border border-green-400 text-green-400 px-3 py-1 text-xs hover:bg-green-900 hover:bg-opacity-20 uppercase"
+          >
             [Done]
           </button>
-          <button class="border border-red-500 text-red-500 px-3 py-1 text-xs hover:bg-red-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_dismiss"
+            phx-value-id={@id}
+            class="border border-red-500 text-red-500 px-3 py-1 text-xs hover:bg-red-900 hover:bg-opacity-20 uppercase"
+          >
             [No]
           </button>
-          <button class="border border-yellow-500 text-yellow-500 px-3 py-1 text-xs hover:bg-yellow-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_push"
+            phx-value-id={@id}
+            class="border border-yellow-500 text-yellow-500 px-3 py-1 text-xs hover:bg-yellow-900 hover:bg-opacity-20 uppercase"
+          >
             [Push]
           </button>
         </div>

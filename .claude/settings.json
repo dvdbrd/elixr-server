@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Check if any Elixir source files (.ex) were modified in the current session. If significant changes were made (new modules added/removed, public functions changed, schemas altered, routes added/removed, status enums changed), verify that the nearest CLAUDE.md file in the module's directory accurately reflects those changes. If a CLAUDE.md is out of date, respond with {\"decision\": \"block\", \"reason\": \"CLAUDE.md in [path] needs updating: [brief description of what changed]\"} so the session can update it before finishing. If all CLAUDE.md files are current, respond with {\"decision\": \"approve\"}. Only flag truly significant changes — ignore formatting, comments, or minor refactors.",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

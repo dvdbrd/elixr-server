@@ -74,40 +74,50 @@ defmodule ShepherdWeb.HqLive.Index2 do
 
   @impl true
   def handle_event("bump_queue", %{"index" => index_str}, socket) do
-    index = String.to_integer(index_str)
-    queue = socket.assigns.command_queue
+    case Integer.parse(index_str) do
+      {index, _} ->
+        queue = socket.assigns.command_queue
 
-    if index > 0 and index < length(queue) do
-      item = Enum.at(queue, index)
-      new_queue = List.delete_at(queue, index) |> List.insert_at(0, item)
+        if index > 0 and index < length(queue) do
+          item = Enum.at(queue, index)
+          new_queue = List.delete_at(queue, index) |> List.insert_at(0, item)
 
-      socket =
-        socket
-        |> assign(:command_queue, new_queue)
-        |> add_flash_message(:info, "Command bumped to front of queue")
+          socket =
+            socket
+            |> assign(:command_queue, new_queue)
+            |> add_flash_message(:info, "Command bumped to front of queue")
 
-      {:noreply, socket}
-    else
-      {:noreply, socket}
+          {:noreply, socket}
+        else
+          {:noreply, socket}
+        end
+
+      :error ->
+        {:noreply, socket}
     end
   end
 
   @impl true
   def handle_event("kill_queue", %{"index" => index_str}, socket) do
-    index = String.to_integer(index_str)
-    queue = socket.assigns.command_queue
+    case Integer.parse(index_str) do
+      {index, _} ->
+        queue = socket.assigns.command_queue
 
-    if index >= 0 and index < length(queue) do
-      new_queue = List.delete_at(queue, index)
+        if index >= 0 and index < length(queue) do
+          new_queue = List.delete_at(queue, index)
 
-      socket =
-        socket
-        |> assign(:command_queue, new_queue)
-        |> add_flash_message(:warning, "Command removed from queue")
+          socket =
+            socket
+            |> assign(:command_queue, new_queue)
+            |> add_flash_message(:warning, "Command removed from queue")
 
-      {:noreply, socket}
-    else
-      {:noreply, socket}
+          {:noreply, socket}
+        else
+          {:noreply, socket}
+        end
+
+      :error ->
+        {:noreply, socket}
     end
   end
 

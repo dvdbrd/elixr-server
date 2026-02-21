@@ -78,16 +78,19 @@ defmodule ShepherdWeb.AppLive.Index do
 
               <div class="space-y-3 max-w-3xl">
                 <.command_card
+                  id="app-bugs-1"
                   title="Fix memory leak in WebSocket connection handler"
                   explanation="Connections are not being properly closed, causing memory usage to grow over time"
                 />
 
                 <.command_card
+                  id="app-bugs-2"
                   title="Resolve race condition in payment processing"
                   explanation="Fix concurrent payment processing issue that occasionally causes duplicate charges"
                 />
 
                 <.command_card
+                  id="app-bugs-3"
                   title="Fix mobile layout breaking on iOS Safari"
                   explanation="Address CSS flexbox rendering issue specific to iOS Safari browsers"
                 />
@@ -112,16 +115,19 @@ defmodule ShepherdWeb.AppLive.Index do
 
               <div class="space-y-3 max-w-3xl">
                 <.command_card
+                  id="app-deploy-1"
                   title="Deploy v2.1.0 to production"
                   explanation="Release new version with authentication improvements and bug fixes to production environment"
                 />
 
                 <.command_card
+                  id="app-deploy-2"
                   title="Set up staging environment for QA testing"
                   explanation="Create isolated staging environment that mirrors production for quality assurance testing"
                 />
 
                 <.command_card
+                  id="app-deploy-3"
                   title="Implement rate limiting for API endpoints"
                   explanation="Add rate limiting middleware to prevent API abuse and ensure fair usage across all clients"
                 />

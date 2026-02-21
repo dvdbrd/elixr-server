@@ -108,6 +108,7 @@ defmodule ShepherdWeb.Layouts do
       <button
         class=" rounded-lg hover:bg-base-200 transition-colors"
         phx-click={JS.toggle(to: "#profile-dropdown")}
+        aria-label="Toggle profile menu"
       >
         <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-content font-bold text-sm">
           {String.first(@current_user.username || @current_user.email)}
@@ -121,10 +122,10 @@ defmodule ShepherdWeb.Layouts do
       >
         <.dropdown_item navigate="/my" icon="hero-user" text="Profile" />
         <.dropdown_item navigate="/subscription" icon="hero-star" text="Subscription" />
-        <.dropdown_item navigate="/settings" icon="hero-cog-6-tooth" text="Settings" />
+        <.dropdown_item navigate="/users/settings" icon="hero-cog-6-tooth" text="Settings" />
         <div class="my-2 border-t border-base-content/20"></div>
         <.dropdown_item
-          href="/users/log_out"
+          href="/users/log-out"
           method="delete"
           icon="hero-arrow-right-on-rectangle"
           text="Sign out"
@@ -174,12 +175,12 @@ defmodule ShepherdWeb.Layouts do
             Subscription
           </.mobile_nav_item>
 
-          <.mobile_nav_item navigate="/settings" icon="hero-cog-6-tooth">
+          <.mobile_nav_item navigate="/users/settings" icon="hero-cog-6-tooth">
             Settings
           </.mobile_nav_item>
 
           <div class="border-t border-base-content/20 my-4 mx-4"></div>
-          <.mobile_nav_item href="/users/log_out" method="delete" icon="hero-arrow-right-on-rectangle">
+          <.mobile_nav_item href="/users/log-out" method="delete" icon="hero-arrow-right-on-rectangle">
             Sign Out
           </.mobile_nav_item>
         <% else %>
@@ -308,15 +309,15 @@ defmodule ShepherdWeb.Layouts do
     <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
       <div class="absolute w-[33%] h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-[33%] [[data-theme=dark]_&]:left-[66%] transition-[left]" />
 
-      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "system"})} class="flex p-2">
+      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "system"})} class="flex p-2" aria-label="Use system theme">
         <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
 
-      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "light"})} class="flex p-2">
+      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "light"})} class="flex p-2" aria-label="Use light theme">
         <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
 
-      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "dark"})} class="flex p-2">
+      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "dark"})} class="flex p-2" aria-label="Use dark theme">
         <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
     </div>

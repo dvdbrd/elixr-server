@@ -194,13 +194,16 @@ Simulated terminal monitoring UI with live clock, process progress bars, agent s
 
 ## Sidebar-Navigation Domain Views (Scaffold/Demo)
 
-These views share the same pattern: sidebar with tab links, tab content via `handle_params`, and hardcoded demo `command_card` components with [Done]/[No]/[Push] buttons that have no wired-up event handlers. They do NOT use `current_scope` or any database context modules.
+These views share the same pattern: sidebar with tab links, tab content via `handle_params`, and hardcoded demo `command_card` components with [Done]/[No]/[Push] buttons wired to flash-based event handlers. They extract `current_scope.user.id` in `mount/3` for future database integration.
 
 **Common pattern:**
-- `mount/3`: assigns `:page_title`, `:active_section`, `:active_tab`
+- `mount/3`: extracts `user_id` from `current_scope.user.id`, assigns `:page_title`, `:active_section`, `:active_tab`, `:user_id`
 - `handle_params/3`: updates `:active_tab` and `:page_title` from URL params
 - `handle_event("change_tab", ...)`: uses `push_patch` to update URL
-- Components: domain-specific `_sidebar`, shared `sidebar_nav_link`, `command_card`
+- `handle_event("command_done", ...)`: shows flash "Command marked as done"
+- `handle_event("command_dismiss", ...)`: shows flash "Command dismissed"
+- `handle_event("command_push", ...)`: shows flash "Command pushed to queue"
+- Components: domain-specific `_sidebar`, shared `sidebar_nav_link` (with active state styling), `command_card` (with `id`, `title`, `explanation` attrs)
 
 ### `AppLive.Index` -- `/app`
 Tabs: backlog, bugs, pull_requests, deployments, documentation, settings. First tab ("backlog") and "bugs" and "deployments" have hardcoded command cards. Others are placeholder text.
@@ -296,7 +299,7 @@ These views use the standard `Layouts.app` layout (not the terminal theme). They
 ## Known Issues
 
 - `HqLive.Index2` and `TerminalLive.Index` use entirely hardcoded demo data with no database integration
-- Sidebar domain views (`AppLive`, `MarketingLive`, `FunnelLive`, `SalesLive`, `HrLive`, `CustomersLive`) have [Done]/[No]/[Push] buttons on command cards that are not wired to any `handle_event` callbacks
+- Sidebar domain views (`AppLive`, `MarketingLive`, `FunnelLive`, `SalesLive`, `HrLive`, `CustomersLive`) have [Done]/[No]/[Push] buttons wired to flash-based event handlers (demo/scaffold -- no database integration yet)
 - `HqLive.Index3` domain pulse data is hardcoded (not derived from database); only signals are loaded from the database
 - `HqLive.Index3` `"submit_command"` event clears input but does not actually create a command in the database
 

@@ -3,11 +3,14 @@ defmodule ShepherdWeb.MarketingLive.Index do
 
   @impl true
   def mount(params, _session, socket) do
+    user_id = socket.assigns.current_scope.user.id
+
     socket =
       socket
       |> assign(:page_title, "Marketing")
       |> assign(:active_section, "marketing")
       |> assign(:active_tab, params["tab"])
+      |> assign(:user_id, user_id)
 
     {:ok, socket}
   end
@@ -47,16 +50,19 @@ defmodule ShepherdWeb.MarketingLive.Index do
 
               <div class="space-y-3 max-w-3xl">
                 <.command_card
+                  id="mkt-campaigns-1"
                   title="Launch email campaign for Q1 product release"
                   explanation="Create and send targeted email campaign announcing new features to existing customers and prospects"
                 />
 
                 <.command_card
+                  id="mkt-campaigns-2"
                   title="Create social media content calendar for February"
                   explanation="Plan and schedule 30 days of social media posts across LinkedIn, Twitter, and Facebook"
                 />
 
                 <.command_card
+                  id="mkt-campaigns-3"
                   title="Optimize Google Ads targeting for enterprise segment"
                   explanation="Refine ad targeting and copy to better reach enterprise decision makers and improve conversion rate"
                 />
@@ -128,6 +134,18 @@ defmodule ShepherdWeb.MarketingLive.Index do
   @impl true
   def handle_event("change_tab", %{"tab" => tab}, socket) do
     {:noreply, push_patch(socket, to: ~p"/marketing?tab=#{tab}")}
+  end
+
+  def handle_event("command_done", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command marked as done")}
+  end
+
+  def handle_event("command_dismiss", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command dismissed")}
+  end
+
+  def handle_event("command_push", %{"id" => _id}, socket) do
+    {:noreply, put_flash(socket, :info, "Command pushed to queue")}
   end
 
   defp marketing_sidebar(assigns) do
@@ -230,6 +248,7 @@ defmodule ShepherdWeb.MarketingLive.Index do
 
   attr :title, :string, required: true
   attr :explanation, :string, required: true
+  attr :id, :string, required: true
 
   defp command_card(assigns) do
     ~H"""
@@ -250,13 +269,25 @@ defmodule ShepherdWeb.MarketingLive.Index do
         </div>
 
         <div class="flex gap-2 justify-end">
-          <button class="border border-green-400 text-green-400 px-3 py-1 text-xs hover:bg-green-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_done"
+            phx-value-id={@id}
+            class="border border-green-400 text-green-400 px-3 py-1 text-xs hover:bg-green-900 hover:bg-opacity-20 uppercase"
+          >
             [Done]
           </button>
-          <button class="border border-red-500 text-red-500 px-3 py-1 text-xs hover:bg-red-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_dismiss"
+            phx-value-id={@id}
+            class="border border-red-500 text-red-500 px-3 py-1 text-xs hover:bg-red-900 hover:bg-opacity-20 uppercase"
+          >
             [No]
           </button>
-          <button class="border border-yellow-500 text-yellow-500 px-3 py-1 text-xs hover:bg-yellow-900 hover:bg-opacity-20 uppercase">
+          <button
+            phx-click="command_push"
+            phx-value-id={@id}
+            class="border border-yellow-500 text-yellow-500 px-3 py-1 text-xs hover:bg-yellow-900 hover:bg-opacity-20 uppercase"
+          >
             [Push]
           </button>
         </div>

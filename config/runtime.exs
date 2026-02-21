@@ -32,8 +32,7 @@ if config_env() == :prod do
 
   config :shepherd, Shepherd.Repo,
     ssl: System.get_env("DATABASE_SSL") != "false",
-    # TODO: Add cacerts configuration (e.g., cacerts: :public_key.cacerts_get() for OTP 25+)
-    ssl_opts: [verify: :verify_peer],
+    ssl_opts: [verify: :verify_peer, cacerts: :public_key.cacerts_get()],
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     # For machines with several cores, consider starting multiple pools of `pool_size`

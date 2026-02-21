@@ -14,6 +14,7 @@ defmodule ShepherdWeb.TerminalLive.Index do
       |> assign(:uptime_seconds, 607337)
       |> assign(:system_load, 84)
       |> assign(:active_agents, 17)
+      |> assign(:reduced_motion, false)
       |> assign_active_processes()
       |> assign_agent_status()
       |> assign_queue_data()
@@ -65,10 +66,11 @@ defmodule ShepherdWeb.TerminalLive.Index do
         <!-- Terminal Header -->
         <div class="mb-6 border-2 border-green-500 terminal-glow">
           <div class="border-b-2 border-green-500 p-3">
+            <!-- Animated indicators respect prefers-reduced-motion -->
             <div class="flex items-center gap-2 mb-2">
-              <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-              <div class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
-              <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <div class="w-2 h-2 rounded-full bg-red-500 motion-safe:animate-pulse"></div>
+              <div class="w-2 h-2 rounded-full bg-yellow-500 motion-safe:animate-pulse"></div>
+              <div class="w-2 h-2 rounded-full bg-green-500 motion-safe:animate-pulse"></div>
             </div>
             <div class="text-sm lg:text-base">
               SHEPHERD AI CONTROL SYSTEM v2.4.1
@@ -205,7 +207,7 @@ defmodule ShepherdWeb.TerminalLive.Index do
                 <div class="text-xs opacity-75 mb-4">
                   Immediate halt of all<br />AI operations
                 </div>
-                <div class="text-xs text-center border border-red-500 py-1 px-2 inline-block animate-pulse">
+                <div class="text-xs text-center border border-red-500 py-1 px-2 inline-block motion-safe:animate-pulse">
                   [!! PRESS TO HALT !!]
                 </div>
               </button>
@@ -224,7 +226,7 @@ defmodule ShepherdWeb.TerminalLive.Index do
                 [<%= entry.timestamp %>] <%= entry.agent %> >> <%= entry.message %>
               </div>
             <% end %>
-            <div class="opacity-75 animate-pulse">> _</div>
+            <div class="opacity-75 motion-safe:animate-pulse">> _</div>
           </div>
         </div>
       </div>
@@ -407,7 +409,7 @@ defmodule ShepherdWeb.TerminalLive.Index do
 
   defp log_entry_class(severity) do
     case severity do
-      :critical -> "text-red-500 animate-pulse"
+      :critical -> "text-red-500 motion-safe:animate-pulse"
       :warning -> "text-yellow-500"
       :normal -> "opacity-80"
       _ -> "opacity-80"
