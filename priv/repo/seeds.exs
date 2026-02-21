@@ -15,10 +15,13 @@ Repo.delete_all(Website)
 user =
   case Repo.get_by(User, email: "test@example.com") do
     nil ->
+      # In production, set SEED_PASSWORD env var
+      seed_password = System.get_env("SEED_PASSWORD") || "password12345"
+
       {:ok, user} =
         %User{}
         |> User.email_changeset(%{email: "test@example.com"})
-        |> User.password_changeset(%{password: "password12345"})
+        |> User.password_changeset(%{password: seed_password})
         |> Repo.insert()
       user
     user ->

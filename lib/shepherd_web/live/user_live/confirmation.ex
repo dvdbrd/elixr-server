@@ -22,12 +22,8 @@ defmodule ShepherdWeb.UserLive.Confirmation do
           phx-trigger-action={@trigger_submit}
         >
           <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
-          <.button
-            name={@form[:remember_me].name}
-            value="true"
-            phx-disable-with="Confirming..."
-            class="btn btn-primary w-full"
-          >
+          <input type="hidden" name={@form[:remember_me].name} value="true" />
+          <.button phx-disable-with="Confirming..." class="btn btn-primary w-full">
             Confirm and stay logged in
           </.button>
           <.button phx-disable-with="Confirming..." class="btn btn-primary btn-soft w-full mt-2">
@@ -50,12 +46,8 @@ defmodule ShepherdWeb.UserLive.Confirmation do
               Log in
             </.button>
           <% else %>
-            <.button
-              name={@form[:remember_me].name}
-              value="true"
-              phx-disable-with="Logging in..."
-              class="btn btn-primary w-full"
-            >
+            <input type="hidden" name={@form[:remember_me].name} value="true" />
+            <.button phx-disable-with="Logging in..." class="btn btn-primary w-full">
               Keep me logged in on this device
             </.button>
             <.button phx-disable-with="Logging in..." class="btn btn-primary btn-soft w-full mt-2">

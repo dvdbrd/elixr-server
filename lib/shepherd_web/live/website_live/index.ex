@@ -4,7 +4,6 @@ defmodule ShepherdWeb.WebsiteLive.Index do
   alias Shepherd.Repo
   alias Shepherd.Websites.Website
   import Ecto.Query
-  require Logger
 
   @impl true
   def mount(params, _session, socket) do
@@ -38,10 +37,8 @@ defmodule ShepherdWeb.WebsiteLive.Index do
     # Fetch commands if website exists
     commands =
       if website do
-        case CommandManager.get_pending_commands(user_id, "website", website.id) do
-          {:ok, commands} -> commands
-          {:error, _} -> []
-        end
+        {:ok, commands} = CommandManager.get_pending_commands(user_id, "website", website.id)
+        commands
       else
         []
       end
@@ -398,6 +395,11 @@ defmodule ShepherdWeb.WebsiteLive.Index do
   end
 
   @impl true
+  def handle_event("answer_question", _params, %{assigns: %{website: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, "Please add a website first")}
+  end
+
+  @impl true
   def handle_event("answer_question", %{"question-id" => question_id, "answer" => answer}, socket) do
     user_id = socket.assigns.user_id
     website = socket.assigns.website
@@ -422,26 +424,15 @@ defmodule ShepherdWeb.WebsiteLive.Index do
             {:ok, nil}
           end
 
-        case result do
-          {:ok, _} ->
-            socket =
-              socket
-              |> reload_questions(user_id, website.id)
-              |> reload_complaints(user_id, website.id)
-              |> reload_context(user_id, website.id)
+        {:ok, _} = result
 
-            {:noreply, socket}
+        socket =
+          socket
+          |> reload_questions(user_id, website.id)
+          |> reload_complaints(user_id, website.id)
+          |> reload_context(user_id, website.id)
 
-          {:error, reason} ->
-            Logger.warning("Processing failed: #{inspect(reason)}")
-
-            socket =
-              socket
-              |> reload_questions(user_id, website.id)
-              |> reload_complaints(user_id, website.id)
-
-            {:noreply, socket}
-        end
+        {:noreply, socket}
 
       {:error, _} ->
         {:noreply, socket}
@@ -449,13 +440,14 @@ defmodule ShepherdWeb.WebsiteLive.Index do
   end
 
   @impl true
-  def handle_event("create_website", %{"url" => url} = params, socket) do
+  def handle_event("create_website", %{"url" => url} = params, socket) when url != "" do
     user_id = socket.assigns.user_id
+    name = Map.get(params, "name", "") |> to_string() |> String.trim()
 
     attrs = %{
       user_id: user_id,
       url: url,
-      name: Map.get(params, "name")
+      name: if(name == "", do: nil, else: name)
     }
 
     case WebsiteManager.create_website_with_scan(attrs) do
@@ -463,8 +455,18 @@ defmodule ShepherdWeb.WebsiteLive.Index do
         {:noreply, assign(socket, :website, website)}
 
       {:error, _changeset} ->
-        {:noreply, socket}
+        {:noreply, put_flash(socket, :error, "Failed to create website")}
     end
+  end
+
+  @impl true
+  def handle_event("create_website", _params, socket) do
+    {:noreply, put_flash(socket, :error, "Please provide a website URL")}
+  end
+
+  @impl true
+  def handle_event("update_domain", _params, %{assigns: %{website: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, "Please add a website first")}
   end
 
   @impl true
@@ -495,24 +497,44 @@ defmodule ShepherdWeb.WebsiteLive.Index do
   end
 
   @impl true
+  def handle_event("dismiss_question", _params, %{assigns: %{website: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, "Please add a website first")}
+  end
+
+  @impl true
   def handle_event("dismiss_question", %{"question-id" => question_id}, socket) do
     user_id = socket.assigns.user_id
     website = socket.assigns.website
 
-    case WebsiteManager.dismiss_question(user_id, question_id) do
-      {:ok, _dismissed_question} ->
-        # Reload questions after dismissal
-        questions =
-          case WebsiteManager.get_unanswered_questions(user_id, website.id) do
-            {:ok, questions} -> questions
-            {:error, _} -> []
-          end
+    # Verify the question belongs to this user's website before dismissing
+    question = Repo.get(Shepherd.Websites.UserQuestion, question_id)
 
-        {:noreply, assign(socket, :questions, questions)}
+    cond do
+      is_nil(question) ->
+        {:noreply, put_flash(socket, :error, "Question not found")}
 
-      {:error, _} ->
-        {:noreply, socket}
+      question.entity_id != website.id ->
+        {:noreply, put_flash(socket, :error, "Question does not belong to this website")}
+
+      true ->
+        case WebsiteManager.dismiss_question(user_id, question_id) do
+          {:ok, _dismissed_question} ->
+            socket =
+              socket
+              |> reload_questions(user_id, website.id)
+              |> reload_complaints(user_id, website.id)
+
+            {:noreply, socket}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to dismiss question")}
+        end
     end
+  end
+
+  @impl true
+  def handle_event("complete_command", _params, %{assigns: %{website: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, "Please add a website first")}
   end
 
   @impl true
@@ -528,6 +550,11 @@ defmodule ShepherdWeb.WebsiteLive.Index do
       {:error, _} ->
         {:noreply, socket}
     end
+  end
+
+  @impl true
+  def handle_event("dismiss_command", _params, %{assigns: %{website: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, "Please add a website first")}
   end
 
   @impl true
@@ -762,12 +789,7 @@ defmodule ShepherdWeb.WebsiteLive.Index do
   end
 
   defp reload_commands(socket, user_id, website_id) do
-    commands =
-      case CommandManager.get_pending_commands(user_id, "website", website_id) do
-        {:ok, commands} -> commands
-        {:error, _} -> []
-      end
-
+    {:ok, commands} = CommandManager.get_pending_commands(user_id, "website", website_id)
     assign(socket, :commands, commands)
   end
 

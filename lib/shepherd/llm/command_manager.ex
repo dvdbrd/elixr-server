@@ -50,11 +50,35 @@ defmodule Shepherd.LLM.CommandManager do
 
   @doc """
   Create a new command.
+  Verifies that the entity (website) belongs to the user before creating.
   """
   def create_command(attrs) do
-    %Command{}
-    |> Command.changeset(attrs)
-    |> Repo.insert()
+    user_id = attrs[:user_id] || attrs["user_id"]
+    entity_type = attrs[:entity_type] || attrs["entity_type"]
+    entity_id = attrs[:entity_id] || attrs["entity_id"]
+
+    cond do
+      is_nil(user_id) ->
+        {:error, :user_id_required}
+
+      entity_type == "website" and not is_nil(entity_id) ->
+        query =
+          from w in Shepherd.Websites.Website,
+            where: w.id == ^entity_id and w.user_id == ^user_id
+
+        case Repo.one(query) do
+          nil -> {:error, :unauthorized}
+          _website ->
+            %Command{}
+            |> Command.changeset(attrs)
+            |> Repo.insert()
+        end
+
+      true ->
+        %Command{}
+        |> Command.changeset(attrs)
+        |> Repo.insert()
+    end
   end
 
   @doc """

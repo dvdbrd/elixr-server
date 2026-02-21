@@ -44,10 +44,19 @@ defmodule Shepherd.Websites.UserQuestion do
     |> validate_options_format()
   end
 
-  def answer_changeset(question, answer) do
+  def answer_changeset(question, %{answer: answer_value}) do
     question
     |> change(%{
-      answer: %{"answer" => answer},
+      answer: %{"answer" => answer_value},
+      answered_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      status: "answered"
+    })
+  end
+
+  def answer_changeset(question, answer_value) when not is_map(answer_value) do
+    question
+    |> change(%{
+      answer: %{"answer" => answer_value},
       answered_at: DateTime.utc_now() |> DateTime.truncate(:second),
       status: "answered"
     })

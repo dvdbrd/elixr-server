@@ -8,6 +8,7 @@ defmodule ShepherdWeb.Endpoint do
     store: :cookie,
     key: "_shepherd_key",
     signing_salt: "SQcValmo",
+    encryption_salt: "k8Xp2mR7vQ3n",
     same_site: "Lax"
   ]
 

@@ -1,5 +1,6 @@
 defmodule ShepherdWeb.Router do
   use ShepherdWeb, :router
+  # TODO: Add rate limiting plug (e.g., hammer or ex_rated) for auth and API routes
 
   import ShepherdWeb.UserAuth
 

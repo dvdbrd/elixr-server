@@ -88,11 +88,18 @@ defmodule Shepherd.LLM.FeedbackManager do
 
   @doc """
   Create new feedback for a user.
+  Requires user_id in attrs.
   """
   def create_feedback(attrs) do
-    %Feedback{}
-    |> Feedback.changeset(attrs)
-    |> Repo.insert()
+    user_id = attrs[:user_id] || attrs["user_id"]
+
+    if is_nil(user_id) do
+      {:error, :user_id_required}
+    else
+      %Feedback{}
+      |> Feedback.changeset(attrs)
+      |> Repo.insert()
+    end
   end
 
   @doc """

@@ -56,68 +56,93 @@ defmodule ShepherdWeb.HqLive.Index3 do
     index = socket.assigns.triage_index
     signals = socket.assigns.signals
 
-    if index < length(signals) do
+    if index >= 0 and index < length(signals) do
       current_signal = Enum.at(signals, index)
       # Mark command as completed in database
       ContextManager.mark_command_completed(user_id, current_signal.command_id)
+
+      {:noreply, remove_current_signal(socket)}
+    else
+      {:noreply, assign(socket, :triage_index, 0)}
     end
-
-    socket =
-      socket
-      |> remove_current_signal()
-
-    {:noreply, socket}
   end
 
   @impl true
   def handle_event("triage_defer", _params, socket) do
-    user_id = socket.assigns.user_id
-    index = socket.assigns.triage_index
     signals = socket.assigns.signals
+    index = socket.assigns.triage_index
 
-    if index < length(signals) do
-      current_signal = Enum.at(signals, index)
-      # Mark command as completed in database
-      ContextManager.mark_command_completed(user_id, current_signal.command_id)
+    if index >= 0 and index < length(signals) do
+      # Defer just advances past the current item without changing its status
+      {:noreply, advance_triage(socket)}
+    else
+      {:noreply, assign(socket, :triage_index, 0)}
     end
-
-    socket =
-      socket
-      |> remove_current_signal()
-
-    {:noreply, socket}
   end
 
   @impl true
   def handle_event("triage_skip", _params, socket) do
-    {:noreply, advance_triage(socket)}
+    index = socket.assigns.triage_index
+    signals = socket.assigns.signals
+
+    if index >= 0 and index < length(signals) do
+      {:noreply, advance_triage(socket)}
+    else
+      {:noreply, assign(socket, :triage_index, 0)}
+    end
   end
 
   @impl true
   def handle_event("signal_action", %{"id" => id, "action" => action}, socket) do
-    user_id = socket.assigns.user_id
-    signal_id = String.to_integer(id)
+    case Integer.parse(id) do
+      {signal_id, _} ->
+        user_id = socket.assigns.user_id
+        signal = Enum.find(socket.assigns.signals, fn s -> s.id == signal_id end)
 
-    # Find the signal to get the command_id
-    signal = Enum.find(socket.assigns.signals, fn s -> s.id == signal_id end)
+        if signal do
+          if action in ["deploy"] do
+            ContextManager.mark_command_completed(user_id, signal.command_id)
+          end
 
-    if signal && action in ["deploy", "defer"] do
-      # Mark command as completed in database
-      ContextManager.mark_command_completed(user_id, signal.command_id)
+          {:noreply, remove_signal(socket, signal_id)}
+        else
+          {:noreply, socket}
+        end
+
+      :error ->
+        {:noreply, socket}
     end
-
-    socket =
-      socket
-      |> remove_signal(signal_id)
-
-    {:noreply, socket}
   end
 
   @impl true
   def handle_event("submit_command", %{"command" => command}, socket) do
-    if String.trim(command) != "" do
-      # Add command to system (would integrate with actual command processor)
-      {:noreply, assign(socket, :command_input, "")}
+    trimmed = String.trim(command)
+
+    if trimmed != "" do
+      user_id = socket.assigns.user_id
+      domain = extract_domain(trimmed)
+
+      attrs = %{
+        user_id: user_id,
+        command_text: trimmed,
+        urgency: "medium",
+        status: "pending",
+        created_by: "user",
+        entity_type: String.downcase(domain)
+      }
+
+      case Repo.insert(UserCommand.changeset(%UserCommand{}, attrs)) do
+        {:ok, _command} ->
+          socket =
+            socket
+            |> assign(:command_input, "")
+            |> assign_signals(user_id)
+
+          {:noreply, socket}
+
+        {:error, _changeset} ->
+          {:noreply, assign(socket, :command_input, "")}
+      end
     else
       {:noreply, socket}
     end

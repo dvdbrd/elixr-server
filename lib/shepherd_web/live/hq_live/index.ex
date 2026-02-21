@@ -1,6 +1,6 @@
 defmodule ShepherdWeb.HqLive.Index do
   use ShepherdWeb, :live_view
-  alias Shepherd.LLM.{Feedback, FeedbackManager}
+  alias Shepherd.LLM.FeedbackManager
 
   @impl true
   def mount(_params, _session, socket) do
@@ -149,7 +149,11 @@ defmodule ShepherdWeb.HqLive.Index do
                   <.feedback_stream_item feedback={feedback} />
                 <% end %>
                 <%= if Enum.empty?(@all_feedback) do %>
-                  <div class="text-xs opacity-60 p-2">No feedback yet</div>
+                  <div class="text-center p-6">
+                    <div class="text-2xl mb-3">◇</div>
+                    <p class="text-xs font-bold text-green-400 uppercase mb-1">No active feedback</p>
+                    <p class="text-xs opacity-60">Check back after running analysis.</p>
+                  </div>
                 <% end %>
               </div>
             </div>

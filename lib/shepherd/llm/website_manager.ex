@@ -94,8 +94,12 @@ defmodule Shepherd.LLM.WebsiteManager do
       _website ->
         changeset =
           UserQuestion.changeset(%UserQuestion{}, %{
+            user_id: user_id,
+            entity_type: "website",
+            entity_id: website_id,
             website_id: website_id,
             question_text: question_text,
+            question_type: "onboarding",
             options: %{"choices" => options},
             status: "pending"
           })
@@ -132,28 +136,34 @@ defmodule Shepherd.LLM.WebsiteManager do
   Returns: {:ok, updated_question} or {:error, reason}
   """
   def record_answer(user_id, question_id, answer) when not is_nil(user_id) do
-    # Verify the question belongs to a website owned by the user
-    query =
-      from q in UserQuestion,
-        join: w in Website,
-        on: q.website_id == w.id,
-        where: q.id == ^question_id and w.user_id == ^user_id
+    # Validate answer is not empty/nil
+    if is_nil(answer) or answer == "" do
+      {:error, :invalid_answer}
+    else
+      # Verify the question belongs to a website owned by the user
+      query =
+        from q in UserQuestion,
+          join: w in Website,
+          on: q.website_id == w.id,
+          where: q.id == ^question_id and w.user_id == ^user_id
 
-    case Repo.one(query) do
-      nil ->
-        {:error, :not_found}
+      case Repo.one(query) do
+        nil ->
+          {:error, :not_found}
 
-      question ->
-        changeset = UserQuestion.answer_changeset(question, %{answer: answer})
+        question ->
+          changeset = UserQuestion.answer_changeset(question, %{answer: answer})
 
-        case Repo.update(changeset) do
-          {:ok, updated_question} -> {:ok, updated_question}
-          {:error, changeset} -> {:error, changeset}
-        end
+          case Repo.update(changeset) do
+            {:ok, updated_question} -> {:ok, updated_question}
+            {:error, changeset} -> {:error, changeset}
+          end
+      end
     end
   end
 
   def record_answer(nil, _question_id, _answer), do: {:error, :user_id_required}
+  def record_answer(_user_id, _question_id, nil), do: {:error, :invalid_answer}
 
   @doc """
   Dismiss a question (mark as dismissed without answering).
@@ -240,6 +250,8 @@ defmodule Shepherd.LLM.WebsiteManager do
   Returns: {:ok, question} or {:error, reason}
   """
   def ask_question_polymorphic(user_id, entity_type, entity_id, question_text, options, opts \\ [])
+
+  def ask_question_polymorphic(user_id, entity_type, entity_id, question_text, options, opts)
       when not is_nil(user_id) and is_binary(question_text) and is_list(options) do
     attrs = %{
       user_id: user_id,
@@ -332,21 +344,71 @@ defmodule Shepherd.LLM.WebsiteManager do
   Returns: {:ok, html_string} or {:error, reason}
   """
   def fetch_page_content(url) when is_binary(url) do
-    case Req.get(url, max_redirects: 3, receive_timeout: 15_000) do
-      {:ok, %{status: 200, body: body}} ->
-        {:ok, body}
+    with :ok <- validate_url_scheme(url),
+         :ok <- validate_url_host(url) do
+      case Req.get(url, max_redirects: 3, receive_timeout: 15_000) do
+        {:ok, %{status: 200, body: body}} ->
+          {:ok, body}
 
-      {:ok, %{status: status}} ->
-        Logger.warning("Failed to fetch #{url}: HTTP #{status}")
-        {:error, "HTTP #{status}"}
+        {:ok, %{status: status}} ->
+          Logger.warning("Failed to fetch #{url}: HTTP #{status}")
+          {:error, "HTTP #{status}"}
 
-      {:error, reason} ->
-        Logger.warning("Failed to fetch #{url}: #{inspect(reason)}")
-        {:error, reason}
+        {:error, reason} ->
+          Logger.warning("Failed to fetch #{url}: #{inspect(reason)}")
+          {:error, reason}
+      end
     end
   end
 
   def fetch_page_content(_), do: {:error, :invalid_url}
+
+  defp validate_url_scheme(url) do
+    uri = URI.parse(url)
+
+    if uri.scheme in ["http", "https"] do
+      :ok
+    else
+      {:error, "Invalid or blocked URL"}
+    end
+  end
+
+  defp validate_url_host(url) do
+    uri = URI.parse(url)
+
+    case uri.host do
+      nil ->
+        {:error, "Invalid or blocked URL"}
+
+      host ->
+        case :inet.getaddr(String.to_charlist(host), :inet) do
+          {:ok, ip} ->
+            if blocked_ip?(ip), do: {:error, "Invalid or blocked URL"}, else: :ok
+
+          {:error, _} ->
+            # Also check IPv6
+            case :inet.getaddr(String.to_charlist(host), :inet6) do
+              {:ok, ip6} ->
+                if blocked_ipv6?(ip6), do: {:error, "Invalid or blocked URL"}, else: :ok
+
+              {:error, _} ->
+                {:error, "Invalid or blocked URL"}
+            end
+        end
+    end
+  end
+
+  defp blocked_ip?({127, _, _, _}), do: true
+  defp blocked_ip?({10, _, _, _}), do: true
+  defp blocked_ip?({172, second, _, _}) when second >= 16 and second <= 31, do: true
+  defp blocked_ip?({192, 168, _, _}), do: true
+  defp blocked_ip?({169, 254, _, _}), do: true
+  defp blocked_ip?({0, 0, 0, 0}), do: true
+  defp blocked_ip?(_), do: false
+
+  defp blocked_ipv6?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
+  defp blocked_ipv6?({first, _, _, _, _, _, _, _}) when first >= 0xFC00 and first <= 0xFDFF, do: true
+  defp blocked_ipv6?(_), do: false
 
   @doc """
   Get website metadata (url, name, status) for scanning.
@@ -413,7 +475,9 @@ defmodule Shepherd.LLM.WebsiteManager do
   Get websites that have never been scanned.
   Returns: list of websites ordered by insertion date (oldest first)
   """
-  def get_unscanned_websites(user_id, limit \\ 10) when not is_nil(user_id) do
+  def get_unscanned_websites(user_id, limit \\ 10)
+
+  def get_unscanned_websites(user_id, limit) when not is_nil(user_id) do
     from(w in Website,
       where: w.user_id == ^user_id and is_nil(w.last_scanned_at),
       order_by: [asc: w.inserted_at],
@@ -428,7 +492,9 @@ defmodule Shepherd.LLM.WebsiteManager do
   Get websites that haven't been scanned recently (stale scans).
   Returns: list of websites ordered by last scan date (oldest first)
   """
-  def get_stale_websites(user_id, days_threshold \\ 7, limit \\ 10) when not is_nil(user_id) do
+  def get_stale_websites(user_id, days_threshold \\ 7, limit \\ 10)
+
+  def get_stale_websites(user_id, days_threshold, limit) when not is_nil(user_id) do
     cutoff = DateTime.utc_now() |> DateTime.add(-days_threshold, :day) |> DateTime.truncate(:second)
 
     from(w in Website,
@@ -478,7 +544,7 @@ defmodule Shepherd.LLM.WebsiteManager do
     - {:ok, website} - Website created and scan queued
     - {:error, changeset} - Validation failed
   """
-  def create_website_with_scan(attrs, opts \\ []) do
+  def create_website_with_scan(attrs, _opts \\ []) do
     # Set status to pending_analysis - will be analyzed by Claude Code
     attrs_with_status = Map.put(attrs, :status, "pending_analysis")
 
