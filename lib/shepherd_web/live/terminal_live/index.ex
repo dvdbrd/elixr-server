@@ -356,16 +356,44 @@ defmodule ShepherdWeb.TerminalLive.Index do
   end
 
   defp assign_log_entries(socket) do
-    entries = [
-      %{timestamp: "14:23:47", agent: "CONTENT_GEN_01", message: "Blog post #847 completed (2.4KB)", severity: :normal},
-      %{timestamp: "14:23:52", agent: "SALES_QUAL_03", message: "Lead #1847 flagged [HIGH_PRIORITY]", severity: :warning},
-      %{timestamp: "14:24:01", agent: "SUPPORT_AI_02", message: "Ticket #923 auto-response sent", severity: :normal},
-      %{timestamp: "14:24:15", agent: "ANALYTICS_05", message: "Pattern detected: +34% signup rate", severity: :warning},
-      %{timestamp: "14:24:28", agent: "MARKETING_01", message: "Campaign #12 performance analyzed", severity: :normal},
-      %{timestamp: "14:24:35", agent: "CONTENT_GEN_01", message: "Starting batch #48 (23 items)", severity: :normal},
-      %{timestamp: "14:24:41", agent: "SALES_QUAL_03", message: "3 new leads added to processing queue", severity: :normal},
-      %{timestamp: "14:24:58", agent: "PRICE_ANAL_04", message: "Market analysis complete (competitor)", severity: :normal}
-    ]
+    user_id = socket.assigns.user_id
+
+    # Build initial log entries from recent real commands
+    recent_commands =
+      from(c in Command,
+        where: c.user_id == ^user_id,
+        order_by: [desc: c.updated_at],
+        limit: 8
+      )
+      |> Repo.all()
+
+    entries =
+      if recent_commands == [] do
+        now = Calendar.strftime(DateTime.utc_now(), "%H:%M:%S")
+        [%{timestamp: now, agent: "SYSTEM", message: "Terminal initialized — no commands in queue", severity: :normal}]
+      else
+        Enum.map(recent_commands, fn cmd ->
+          agent = String.upcase(cmd.entity_type || "SYSTEM")
+          ts = Calendar.strftime(cmd.updated_at, "%H:%M:%S")
+          severity = if cmd.urgency in ["critical", "high"], do: :warning, else: :normal
+
+          action =
+            case cmd.status do
+              "completed" -> "Completed"
+              "dismissed" -> "Dismissed"
+              "pending" -> "Queued"
+              "overdue" -> "OVERDUE"
+              other -> String.upcase(other)
+            end
+
+          %{
+            timestamp: ts,
+            agent: agent,
+            message: "#{action}: #{String.slice(cmd.command_text, 0, 60)}",
+            severity: severity
+          }
+        end)
+      end
 
     assign(socket, :log_entries, entries)
   end
@@ -392,14 +420,14 @@ defmodule ShepherdWeb.TerminalLive.Index do
 
   defp add_random_log_entry(socket) do
     messages = [
-      {"CONTENT_GEN_01", "Processing article batch ##{Enum.random(10..99)}", :normal},
-      {"SALES_QUAL_03", "Lead qualification in progress", :normal},
-      {"SUPPORT_AI_02", "Ticket ##{Enum.random(100..999)} resolved automatically", :normal},
-      {"ANALYTICS_05", "Data pattern analysis complete", :normal},
-      {"MARKETING_01", "Campaign optimization cycle complete", :normal},
-      {"CUSTOMER_INT_06", "Customer behavior analysis running", :normal},
-      {"EMAIL_COMP_02", "Email draft generated for review", :normal},
-      {"PRICE_ANAL_04", "Competitor pricing scan initiated", :normal}
+      {"WEBSITE", "Scanning website conversion metrics", :normal},
+      {"APP", "Processing pending app tasks", :normal},
+      {"MARKETING", "Evaluating campaign performance", :normal},
+      {"FUNNEL", "Analyzing funnel drop-off points", :normal},
+      {"SALES", "Qualifying new leads in pipeline", :normal},
+      {"HR", "Reviewing recruitment queue", :normal},
+      {"CUSTOMERS", "Monitoring customer health scores", :normal},
+      {"SYSTEM", "Heartbeat check — all agents nominal", :normal}
     ]
 
     {agent, message, severity} = Enum.random(messages)
