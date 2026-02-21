@@ -789,12 +789,7 @@ defmodule ShepherdWeb.WebsiteLive.Index do
   end
 
   defp reload_commands(socket, user_id, website_id) do
-    commands =
-      case CommandManager.get_pending_commands(user_id, "website", website_id) do
-        {:ok, commands} -> commands
-        {:error, _} -> []
-      end
-
+    {:ok, commands} = CommandManager.get_pending_commands(user_id, "website", website_id)
     assign(socket, :commands, commands)
   end
 

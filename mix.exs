@@ -10,7 +10,17 @@ defmodule Shepherd.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      releases: releases(),
       listeners: [Phoenix.CodeReloader]
+    ]
+  end
+
+  defp releases do
+    [
+      shepherd: [
+        include_executables_for: [:unix],
+        steps: [:assemble, :tar]
+      ]
     ]
   end
 
