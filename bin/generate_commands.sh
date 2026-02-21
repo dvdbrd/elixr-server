@@ -21,6 +21,14 @@ if ! command -v claude &> /dev/null; then
     exit 1
 fi
 
+# Check for Anthropic API key
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "⚠️  Warning: ANTHROPIC_API_KEY is not set"
+    echo "Claude Code may not be able to make API calls without it."
+    echo "Set it with: export ANTHROPIC_API_KEY=your-key-here"
+    echo ""
+fi
+
 # Run Claude Code with the directive
 claude "
 Read the CLAUDE_COMMAND_GENERATION_DIRECTIVE.md file in this directory.
@@ -38,7 +46,7 @@ Be specific and explain conversion impact in reasoning.
 
 Work through websites one at a time.
 
-Database connection: shepherd_dev (PostgreSQL)
+Database connection: Use the DATABASE_URL environment variable (PostgreSQL)
 "
 
 echo ""

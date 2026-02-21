@@ -1,9 +1,14 @@
 defmodule ShepherdWeb.AppLive.Index do
   use ShepherdWeb, :live_view
 
+  import ShepherdWeb.DomainComponents
+
+  alias Shepherd.LLM.CommandManager
+
   @impl true
   def mount(params, _session, socket) do
     user_id = socket.assigns.current_scope.user.id
+    {:ok, commands} = CommandManager.get_pending_commands_by_type(user_id, "app")
 
     socket =
       socket
@@ -11,6 +16,8 @@ defmodule ShepherdWeb.AppLive.Index do
       |> assign(:active_section, "app")
       |> assign(:active_tab, params["tab"])
       |> assign(:user_id, user_id)
+      |> assign(:notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(user_id))
+      |> assign(:commands, commands)
 
     {:ok, socket}
   end
@@ -49,23 +56,19 @@ defmodule ShepherdWeb.AppLive.Index do
               </div>
 
               <div class="space-y-3 max-w-3xl">
-                <.command_card
-                  id="app-backlog-1"
-                  title="Refactor authentication module to use JWT tokens"
-                  explanation="Update the auth system to use stateless JWT tokens instead of session-based authentication for better scalability"
-                />
-
-                <.command_card
-                  id="app-backlog-2"
-                  title="Add real-time notifications using Phoenix Channels"
-                  explanation="Implement WebSocket-based real-time notifications to alert users of important events instantly"
-                />
-
-                <.command_card
-                  id="app-backlog-3"
-                  title="Create API documentation with OpenAPI spec"
-                  explanation="Generate comprehensive API docs using OpenAPI 3.0 specification for better developer experience"
-                />
+                <%= if @commands == [] do %>
+                  <div class="border-2 border-green-500 bg-terminal terminal-glow p-6 text-center">
+                    <p class="text-xs opacity-60">No pending commands</p>
+                  </div>
+                <% else %>
+                  <%= for command <- @commands do %>
+                    <.command_card
+                      id={command.id}
+                      title={command.command_text}
+                      explanation={command.llm_reasoning || "No additional context"}
+                    />
+                  <% end %>
+                <% end %>
               </div>
             </div>
           <% "bugs" -> %>
@@ -77,23 +80,19 @@ defmodule ShepherdWeb.AppLive.Index do
               </div>
 
               <div class="space-y-3 max-w-3xl">
-                <.command_card
-                  id="app-bugs-1"
-                  title="Fix memory leak in WebSocket connection handler"
-                  explanation="Connections are not being properly closed, causing memory usage to grow over time"
-                />
-
-                <.command_card
-                  id="app-bugs-2"
-                  title="Resolve race condition in payment processing"
-                  explanation="Fix concurrent payment processing issue that occasionally causes duplicate charges"
-                />
-
-                <.command_card
-                  id="app-bugs-3"
-                  title="Fix mobile layout breaking on iOS Safari"
-                  explanation="Address CSS flexbox rendering issue specific to iOS Safari browsers"
-                />
+                <%= if @commands == [] do %>
+                  <div class="border-2 border-green-500 bg-terminal terminal-glow p-6 text-center">
+                    <p class="text-xs opacity-60">No pending commands</p>
+                  </div>
+                <% else %>
+                  <%= for command <- @commands do %>
+                    <.command_card
+                      id={command.id}
+                      title={command.command_text}
+                      explanation={command.llm_reasoning || "No additional context"}
+                    />
+                  <% end %>
+                <% end %>
               </div>
             </div>
           <% "pull_requests" -> %>
@@ -114,23 +113,19 @@ defmodule ShepherdWeb.AppLive.Index do
               </div>
 
               <div class="space-y-3 max-w-3xl">
-                <.command_card
-                  id="app-deploy-1"
-                  title="Deploy v2.1.0 to production"
-                  explanation="Release new version with authentication improvements and bug fixes to production environment"
-                />
-
-                <.command_card
-                  id="app-deploy-2"
-                  title="Set up staging environment for QA testing"
-                  explanation="Create isolated staging environment that mirrors production for quality assurance testing"
-                />
-
-                <.command_card
-                  id="app-deploy-3"
-                  title="Implement rate limiting for API endpoints"
-                  explanation="Add rate limiting middleware to prevent API abuse and ensure fair usage across all clients"
-                />
+                <%= if @commands == [] do %>
+                  <div class="border-2 border-green-500 bg-terminal terminal-glow p-6 text-center">
+                    <p class="text-xs opacity-60">No pending commands</p>
+                  </div>
+                <% else %>
+                  <%= for command <- @commands do %>
+                    <.command_card
+                      id={command.id}
+                      title={command.command_text}
+                      explanation={command.llm_reasoning || "No additional context"}
+                    />
+                  <% end %>
+                <% end %>
               </div>
             </div>
           <% "documentation" -> %>
@@ -174,12 +169,24 @@ defmodule ShepherdWeb.AppLive.Index do
     {:noreply, push_patch(socket, to: ~p"/app?tab=#{tab}")}
   end
 
-  def handle_event("command_done", %{"id" => _id}, socket) do
-    {:noreply, put_flash(socket, :info, "Command marked as done")}
+  def handle_event("command_done", %{"id" => id}, socket) do
+    case CommandManager.complete_command(socket.assigns.user_id, id) do
+      {:ok, _command} ->
+        {:ok, commands} = CommandManager.get_pending_commands_by_type(socket.assigns.user_id, "app")
+        {:noreply, socket |> assign(:commands, commands) |> refresh_notification_counts() |> put_flash(:info, "Command completed")}
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not complete command")}
+    end
   end
 
-  def handle_event("command_dismiss", %{"id" => _id}, socket) do
-    {:noreply, put_flash(socket, :info, "Command dismissed")}
+  def handle_event("command_dismiss", %{"id" => id}, socket) do
+    case CommandManager.dismiss_command(socket.assigns.user_id, id) do
+      {:ok, _command} ->
+        {:ok, commands} = CommandManager.get_pending_commands_by_type(socket.assigns.user_id, "app")
+        {:noreply, socket |> assign(:commands, commands) |> refresh_notification_counts() |> put_flash(:info, "Command dismissed")}
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not dismiss command")}
+    end
   end
 
   def handle_event("command_push", %{"id" => _id}, socket) do
@@ -252,21 +259,8 @@ defmodule ShepherdWeb.AppLive.Index do
     """
   end
 
-  defp sidebar_nav_link(assigns) do
-    ~H"""
-    <.link
-      navigate={@navigate}
-      class={[
-        "flex items-center w-full px-3 py-2 border transition-colors",
-        if(@active,
-          do: "bg-green-500 bg-opacity-20 border-green-400 text-green-300",
-          else: "bg-terminal border-green-500 border-opacity-30 text-green-500 opacity-60 hover:bg-green-500 hover:bg-opacity-20 hover:border-green-400 hover:text-green-300 hover:opacity-100"
-        )
-      ]}
-    >
-      {render_slot(@inner_block)}
-    </.link>
-    """
+  defp refresh_notification_counts(socket) do
+    assign(socket, :notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(socket.assigns.user_id))
   end
 
   defp maybe_update_page_title(socket, tab) do
@@ -284,53 +278,4 @@ defmodule ShepherdWeb.AppLive.Index do
     assign(socket, :page_title, title)
   end
 
-  attr :title, :string, required: true
-  attr :explanation, :string, required: true
-  attr :id, :string, required: true
-
-  defp command_card(assigns) do
-    ~H"""
-    <div class="border-2 border-green-500 bg-terminal terminal-glow">
-      <div class="p-3">
-        <div class="flex items-start justify-between gap-4 mb-3">
-          <h3 class="text-sm font-bold flex-1">{@title}</h3>
-
-          <div class="relative group">
-            <button class="border border-green-500 px-2 py-1 text-xs hover:bg-green-900 hover:bg-opacity-20">
-              [?]
-            </button>
-
-            <div class="absolute right-0 top-full mt-2 w-64 p-3 bg-terminal border-2 border-green-500 terminal-glow opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-              <p class="text-xs opacity-90">{@explanation}</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex gap-2 justify-end">
-          <button
-            phx-click="command_done"
-            phx-value-id={@id}
-            class="border border-green-400 text-green-400 px-3 py-1 text-xs hover:bg-green-900 hover:bg-opacity-20 uppercase"
-          >
-            [Done]
-          </button>
-          <button
-            phx-click="command_dismiss"
-            phx-value-id={@id}
-            class="border border-red-500 text-red-500 px-3 py-1 text-xs hover:bg-red-900 hover:bg-opacity-20 uppercase"
-          >
-            [No]
-          </button>
-          <button
-            phx-click="command_push"
-            phx-value-id={@id}
-            class="border border-yellow-500 text-yellow-500 px-3 py-1 text-xs hover:bg-yellow-900 hover:bg-opacity-20 uppercase"
-          >
-            [Push]
-          </button>
-        </div>
-      </div>
-    </div>
-    """
-  end
 end

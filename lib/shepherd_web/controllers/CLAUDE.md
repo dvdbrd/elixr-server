@@ -64,7 +64,7 @@ Handles user authentication session lifecycle: login (email/password and magic l
 
 ### Templates
 
-- **`page_html/home.html.heex`** -- Landing page template. Displays the Phoenix Framework logo, version badge, theme toggle, and links to Phoenix docs, GitHub source, and changelog. Also includes community links (Elixir Forum, Discord, Slack) and Fly.io deployment link. Rendered with `layout: false`.
+- **`page_html/home.html.heex`** -- Landing page template. Displays the Phoenix Framework logo, version badge, theme toggle, and links to Phoenix docs, GitHub source, and changelog. Also includes community links (Elixir Forum, Discord, Slack) and Phoenix deployment docs link. Rendered with `layout: false`.
 
 ### ErrorHTML (`error_html.ex`)
 

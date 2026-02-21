@@ -83,13 +83,14 @@ defmodule ShepherdWeb.Layouts do
   attr :active_offers_count, :integer, default: 0
   attr :unread_notifications_count, :integer, default: 0
   attr :unread_messages_count, :integer, default: 0
+  attr :notification_counts, :map, default: %{}
   attr :socket, :any, default: nil
   slot :inner_block, required: true
 
   def main_layout(assigns) do
     ~H"""
     <div class="h-screen bg-terminal">
-      <.navbar active_section={assigns[:active_section]} />
+      <.navbar active_section={assigns[:active_section]} notification_counts={@notification_counts} />
 
       <main class="h-full overflow-y-auto bg-terminal pl-16 md:pl-40">
         {render_slot(@inner_block)}

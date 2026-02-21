@@ -21,6 +21,14 @@ if ! command -v claude &> /dev/null; then
     exit 1
 fi
 
+# Check for Anthropic API key
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "⚠️  Warning: ANTHROPIC_API_KEY is not set"
+    echo "Claude Code may not be able to make API calls without it."
+    echo "Set it with: export ANTHROPIC_API_KEY=your-key-here"
+    echo ""
+fi
+
 # Run Claude Code with the directive
 claude "
 Read the CLAUDE_ANALYSIS_DIRECTIVE.md file in this directory.
@@ -35,7 +43,7 @@ IMPORTANT: Do NOT generate commands. That happens in step 2.
 
 Work through websites one at a time. Be thorough and specific in your analysis.
 
-Database connection: shepherd_dev (PostgreSQL)
+Database connection: Use the DATABASE_URL environment variable (PostgreSQL)
 "
 
 echo ""

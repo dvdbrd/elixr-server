@@ -103,9 +103,12 @@ defmodule Shepherd.Analytics.UserBehaviorMetric do
   Determine if user is procrastinating based on metrics.
   """
   def procrastinating?(%__MODULE__{} = metric) do
-    metric.procrastination_score >= 6.0 or
+    score = metric.procrastination_score
+    rate = metric.command_completion_rate
+
+    (score != nil and Decimal.compare(score, Decimal.new("6.0")) != :lt) or
       metric.overdue_command_count >= 3 or
-      (metric.command_completion_rate || 1.0) < 0.5
+      (rate != nil and Decimal.compare(rate, Decimal.new("0.5")) == :lt)
   end
 
   @doc """

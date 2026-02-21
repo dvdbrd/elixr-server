@@ -9,7 +9,7 @@ Core business logic for the Shepherd system. These modules are the primary inter
 - **`WebsiteManager`** (`website_manager.ex`) — Primary entry point for website operations. Handles the full website lifecycle: creation with auto-scan enqueueing, context document read/write, website status transitions, user question management (both legacy website-scoped and polymorphic entity-scoped), question expiration, question stats, fetching page HTML content, and retrieving LLM directives. Depends on `Directives` for directive retrieval and on `Shepherd.Websites.{Website, WebsiteContext, UserQuestion}` schemas.
 - **`CommandManager`** (`command_manager.ex`) — CRUD for LLM-issued commands. Retrieves pending commands (sorted by urgency), fetches all commands with pagination, creates new commands, marks commands as completed or dismissed, and returns aggregate command stats by status. Operates on `Shepherd.Commands.Command` schema.
 - **`FeedbackManager`** (`feedback_manager.ex`) — CRUD for LLM-generated feedback messages. Fetches active feedback (filtered by expiration and sorted by severity), fetches by type, retrieves full history with pagination, computes stats (active/critical/warning counts), creates feedback, acknowledges or dismisses individual items, expires stale feedback in bulk, and provides an admin delete-all function. Operates on the `Feedback` schema.
-- **`ContextManager`** (`context_manager.ex`) — Thin adapter bridging HQ LiveViews to `CommandManager`. Currently exposes a single delegation: `mark_command_completed/2` which calls `CommandManager.complete_command/2`. Stub module intended for future expansion with full context management logic.
+- **`ContextManager`** (`context_manager.ex`) — Full context management module with command and feedback tracking, question oversight, and dashboard summary. Exposes functions for command management, feedback tracking, question tracking, and dashboard data aggregation.
 
 ### Schema Modules (Data Definitions)
 
@@ -19,8 +19,8 @@ Core business logic for the Shepherd system. These modules are the primary inter
 
 ### Directive Modules (LLM Prompt Infrastructure)
 
-- **`Directives`** (`directives.ex`) — Stub module that returns the map of available LLM directives. Currently returns `%{}` via `all/0`. Called by `WebsiteManager.get_directives/0`.
-- **`DirectiveProcessor`** (`directive_processor.ex`) — Stub for directive processing logic. Provides `process/2` which logs and returns `{:ok, nil}`. Intended to invoke LLM-driven logic when user questions are answered.
+- **`Directives`** (`directives.ex`) — Defines and retrieves available LLM directives. Provides functions to list all directives, get by name, and query by trigger. Returns 4 directive definitions.
+- **`DirectiveProcessor`** (`directive_processor.ex`) — Processes LLM directives when user questions are answered. Handles the `question_followup` directive; other directives are handled by CLI.
 
 ## Public Function Reference
 
@@ -53,6 +53,7 @@ Core business logic for the Shepherd system. These modules are the primary inter
 |---|---|---|
 | `get_pending_commands` | `(user_id, entity_type, entity_id)` | `{:ok, [commands]}` |
 | `get_all_commands` | `(user_id, entity_type, entity_id, limit \\ 50)` | `{:ok, [commands]}` |
+| `get_pending_commands_by_type` | `(user_id, entity_type)` | `{:ok, [commands]}` |
 | `create_command` | `(attrs)` | `{:ok, command}` or `{:error, changeset}` |
 | `complete_command` | `(user_id, command_id)` | `{:ok, command}` or `{:error, :not_found}` |
 | `dismiss_command` | `(user_id, command_id)` | `{:ok, command}` or `{:error, :not_found}` |
@@ -76,7 +77,13 @@ Core business logic for the Shepherd system. These modules are the primary inter
 
 | Function | Signature | Returns |
 |---|---|---|
-| `mark_command_completed` | `(user_id, command_id)` | delegates to `CommandManager.complete_command/2` |
+| `mark_command_dismissed` | `(user_id, command_id)` | delegates to `CommandManager.dismiss_command/2` |
+| `get_command_overview` | `(user_id)` | map with command counts by status |
+| `get_commands_by_domain` | `(user_id, entity_type)` | `{:ok, [commands]}` or `{:error, reason}` |
+| `get_active_feedback` | `(user_id)` | list of active feedback |
+| `get_feedback_stats` | `(user_id)` | map with feedback counts |
+| `get_unanswered_questions` | `(user_id)` | list of pending questions |
+| `get_dashboard_summary` | `(user_id)` | aggregated context for HQ dashboard |
 
 ### ContextSchema
 
@@ -92,13 +99,16 @@ Core business logic for the Shepherd system. These modules are the primary inter
 
 | Function | Signature | Returns |
 |---|---|---|
-| `all` | `()` | `%{}` (stub) |
+| `all` | `()` | list of 4 directive definitions |
+| `get` | `(name)` | directive struct or nil |
+| `for_trigger` | `(trigger)` | list of directives matching trigger |
+| `names` | `()` | list of directive names |
 
 ### DirectiveProcessor
 
 | Function | Signature | Returns |
 |---|---|---|
-| `process` | `(directive, params)` | `{:ok, nil}` (stub) |
+| `process` | `(directive, params)` | `{:ok, result}` or `{:error, reason}` |
 
 ## Context Document Structure
 
@@ -163,7 +173,7 @@ The `context_document` JSONB field in `website_contexts` follows the schema defi
 - **HTTP fetching**: `fetch_page_content/1` uses `Req` library with 3 max redirects and 15s timeout. It is the only function in this module that does not require `user_id`.
 - **UUID primary keys**: Both `Feedback` and `UserCommand` schemas use `@primary_key {:id, :binary_id, autogenerate: true}`.
 - **Schema duplication**: `UserCommand` is a deliberate schema alias that mirrors `Shepherd.Commands.Command`, providing a separate Ecto schema for the same `commands` table, used by HQ LiveViews.
-- **Stub modules**: `Directives` and `DirectiveProcessor` are intentional stubs. `Directives.all/0` returns `%{}` and `DirectiveProcessor.process/2` returns `{:ok, nil}`. These are placeholders for future LLM directive infrastructure.
+- **Directive infrastructure**: `Directives` defines 4 LLM directives and `DirectiveProcessor` processes the `question_followup` directive when user questions are answered. Other directives are handled by CLI.
 
 ## Module Dependencies
 

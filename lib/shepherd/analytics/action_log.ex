@@ -41,9 +41,9 @@ defmodule Shepherd.Analytics.ActionLog do
   def changeset(action_log, attrs) do
     action_log
     |> cast(attrs, [:user_id, :action_type, :entity_type, :entity_id, :metadata, :timestamp])
+    |> maybe_set_timestamp()
     |> validate_required([:user_id, :action_type, :timestamp])
     |> validate_inclusion(:action_type, @valid_action_types)
-    |> maybe_set_timestamp()
   end
 
   defp maybe_set_timestamp(changeset) do

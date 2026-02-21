@@ -1,8 +1,14 @@
 defmodule ShepherdWeb.HqLive.Index2 do
   use ShepherdWeb, :live_view
+  import Ecto.Query, except: [update: 3]
+  alias Shepherd.Commands.Command
+  alias Shepherd.LLM.{CommandManager, FeedbackManager}
+  alias Shepherd.Repo
 
   @impl true
   def mount(_params, _session, socket) do
+    user_id = socket.assigns.current_scope.user.id
+
     if connected?(socket) do
       :timer.send_interval(1000, self(), :tick)
     end
@@ -11,14 +17,14 @@ defmodule ShepherdWeb.HqLive.Index2 do
       socket
       |> assign(:page_title, "HQ v2")
       |> assign(:active_section, "hq")
+      |> assign(:user_id, user_id)
+      |> assign(:notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(user_id))
       |> assign(:command_input, "")
-      |> assign(:defcon_level, 2)
-      |> assign(:active_ops_count, 4)
-      |> assign(:queue_depth, 12)
       |> assign_threats()
       |> assign_active_operations()
       |> assign_command_queue()
       |> assign_domain_status()
+      |> assign_stats()
 
     {:ok, socket}
   end
@@ -123,21 +129,41 @@ defmodule ShepherdWeb.HqLive.Index2 do
 
   @impl true
   def handle_event("submit_command", %{"command" => command}, socket) do
-    if String.trim(command) != "" do
-      new_command = %{
-        id: :rand.uniform(10000),
-        text: command,
-        domain: detect_domain(command),
-        eta: "~#{:rand.uniform(15)}m"
+    trimmed = String.trim(command)
+
+    if trimmed != "" do
+      user_id = socket.assigns.user_id
+      domain = detect_domain(trimmed)
+
+      attrs = %{
+        user_id: user_id,
+        command_text: trimmed,
+        urgency: "medium",
+        status: "pending",
+        created_by: "user",
+        entity_type: String.downcase(domain)
       }
 
-      socket =
-        socket
-        |> update(:command_queue, fn queue -> queue ++ [new_command] end)
-        |> assign(:command_input, "")
-        |> add_flash_message(:info, "Command queued for execution")
+      case CommandManager.create_command(attrs) do
+        {:ok, cmd} ->
+          new_queue_item = %{
+            id: cmd.id,
+            text: cmd.command_text,
+            domain: cmd.entity_type,
+            eta: "~#{estimate_eta(cmd.urgency)}m"
+          }
 
-      {:noreply, socket}
+          socket =
+            socket
+            |> update(:command_queue, fn queue -> queue ++ [new_queue_item] end)
+            |> assign(:command_input, "")
+            |> add_flash_message(:info, "Command queued for execution")
+
+          {:noreply, socket}
+
+        {:error, _changeset} ->
+          {:noreply, socket |> assign(:command_input, "") |> add_flash_message(:error, "Failed to create command")}
+      end
     else
       {:noreply, socket}
     end
@@ -427,120 +453,162 @@ defmodule ShepherdWeb.HqLive.Index2 do
   # Helper Functions
 
   defp assign_threats(socket) do
-    threats = [
-      %{
-        id: 1,
-        severity: "CRITICAL",
-        domain: "Sales",
-        title: "Enterprise deal stalled - no contact in 48h",
-        impact: "Revenue: $45K/mo",
-        time_detected: "2h ago"
-      },
-      %{
-        id: 2,
-        severity: "CRITICAL",
-        domain: "App",
-        title: "Memory leak causing crashes for 12% of users",
-        impact: "Reputation",
-        time_detected: "4h ago"
-      },
-      %{
-        id: 3,
-        severity: "HIGH",
-        domain: "Customers",
-        title: "Support ticket #1247 escalated by VP",
-        impact: "Churn risk",
-        time_detected: "6h ago"
-      },
-      %{
-        id: 4,
-        severity: "ELEVATED",
-        domain: "Marketing",
-        title: "Campaign CTR down 34% vs. last week",
-        impact: "Pipeline",
-        time_detected: "8h ago"
-      }
-    ]
+    user_id = socket.assigns.user_id
+
+    threats =
+      FeedbackManager.get_active_feedback(user_id)
+      |> Enum.map(fn feedback ->
+        %{
+          id: feedback.id,
+          severity: map_severity(feedback.severity),
+          domain: feedback.feedback_type,
+          title: feedback.title,
+          impact: feedback.severity,
+          time_detected: format_time_ago(feedback.inserted_at)
+        }
+      end)
 
     assign(socket, :threats, threats)
   end
 
+  defp map_severity("critical"), do: "CRITICAL"
+  defp map_severity("warning"), do: "HIGH"
+  defp map_severity(_), do: "MEDIUM"
+
+  defp format_time_ago(datetime) do
+    diff = DateTime.diff(DateTime.utc_now(), datetime, :second)
+
+    cond do
+      diff < 60 -> "#{diff}s ago"
+      diff < 3600 -> "#{div(diff, 60)}m ago"
+      diff < 86400 -> "#{div(diff, 3600)}h ago"
+      true -> "#{div(diff, 86400)}d ago"
+    end
+  end
+
   defp assign_active_operations(socket) do
-    operations = [
-      %{
-        name: "SALES_OUTREACH_089",
-        description: "Drafting follow-up email sequence for Enterprise Corp",
-        domain: "Sales",
-        agent: "QUALIFIER_03",
-        progress: 67,
-        eta: "04:23"
-      },
-      %{
-        name: "BUG_FIX_MEMORY_LEAK",
-        description: "Analyzing WebSocket connection handler for memory leaks",
-        domain: "App",
-        agent: "DEBUGGER_01",
-        progress: 40,
-        eta: "08:15"
-      },
-      %{
-        name: "SUPPORT_TICKET_1247",
-        description: "Researching account history and generating response",
-        domain: "Customers",
-        agent: "SUPPORT_AI_02",
-        progress: 78,
-        eta: "02:45"
-      },
-      %{
-        name: "CAMPAIGN_ANALYSIS_Q1",
-        description: "Analyzing campaign performance and generating optimization plan",
-        domain: "Marketing",
-        agent: "OPTIMIZER_01",
-        progress: 23,
-        eta: "12:08"
-      }
-    ]
+    user_id = socket.assigns.user_id
+
+    commands =
+      from(c in Command,
+        where: c.user_id == ^user_id and c.status == "pending",
+        order_by: [desc: c.inserted_at],
+        limit: 5
+      )
+      |> Repo.all()
+
+    operations =
+      Enum.map(commands, fn command ->
+        %{
+          name: String.slice(command.command_text, 0, 40),
+          description: command.llm_reasoning || command.command_text,
+          domain: command.entity_type,
+          agent: "AI_AGENT",
+          progress: 0,
+          eta: "--:--"
+        }
+      end)
 
     assign(socket, :active_operations, operations)
   end
 
   defp assign_command_queue(socket) do
-    queue = [
-      %{
-        id: 101,
-        text: "Draft Q1 investor update email highlighting revenue growth",
-        domain: "Sales",
-        eta: "~8m"
-      },
-      %{
-        id: 102,
-        text: "Analyze competitor pricing for Enterprise tier",
-        domain: "Marketing",
-        eta: "~12m"
-      },
-      %{
-        id: 103,
-        text: "Create onboarding video script for new feature",
-        domain: "Marketing",
-        eta: "~15m"
-      }
-    ]
+    user_id = socket.assigns.user_id
+
+    commands =
+      from(c in Command,
+        where: c.user_id == ^user_id and c.status == "pending",
+        order_by: [desc: c.inserted_at],
+        offset: 5,
+        limit: 20
+      )
+      |> Repo.all()
+
+    queue =
+      Enum.map(commands, fn command ->
+        %{
+          id: command.id,
+          text: command.command_text,
+          domain: command.entity_type,
+          eta: "~#{estimate_eta(command.urgency)}m"
+        }
+      end)
 
     assign(socket, :command_queue, queue)
   end
 
+  defp estimate_eta("critical"), do: 5
+  defp estimate_eta("high"), do: 10
+  defp estimate_eta("medium"), do: 15
+  defp estimate_eta(_), do: 20
+
   defp assign_domain_status(socket) do
-    domains = [
-      %{name: "Website", health: "healthy", pending: 3, last_activity: "10m ago", link: "/website"},
-      %{name: "App", health: "warning", pending: 5, last_activity: "2m ago", link: "/app"},
-      %{name: "Marketing", health: "warning", pending: 4, last_activity: "5m ago", link: "/marketing"},
-      %{name: "Funnel", health: "healthy", pending: 1, last_activity: "15m ago", link: "/funnel"},
-      %{name: "Sales", health: "critical", pending: 7, last_activity: "1m ago", link: "/sales"},
-      %{name: "HR", health: "healthy", pending: 2, last_activity: "45m ago", link: "/hr"},
-      %{name: "Customers", health: "warning", pending: 3, last_activity: "3m ago", link: "/customers"}
+    user_id = socket.assigns.user_id
+
+    counts_by_type =
+      from(c in Command,
+        where: c.user_id == ^user_id and c.status == "pending",
+        group_by: c.entity_type,
+        select: {c.entity_type, count(c.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    known_domains = [
+      %{name: "Website", entity_type: "website", link: "/website"},
+      %{name: "App", entity_type: "app", link: "/app"},
+      %{name: "Marketing", entity_type: "marketing", link: "/marketing"},
+      %{name: "Funnel", entity_type: "funnel", link: "/funnel"},
+      %{name: "Sales", entity_type: "sales", link: "/sales"},
+      %{name: "HR", entity_type: "hr", link: "/hr"},
+      %{name: "Customers", entity_type: "customers", link: "/customers"}
     ]
 
+    domains =
+      Enum.map(known_domains, fn d ->
+        pending = Map.get(counts_by_type, d.entity_type, 0)
+
+        health =
+          cond do
+            pending >= 7 -> "critical"
+            pending >= 3 -> "warning"
+            true -> "healthy"
+          end
+
+        %{
+          name: d.name,
+          health: health,
+          pending: pending,
+          last_activity: "N/A",
+          link: d.link
+        }
+      end)
+
     assign(socket, :domain_status, domains)
+  end
+
+  defp assign_stats(socket) do
+    threats = socket.assigns.threats
+    ops = socket.assigns.active_operations
+    queue = socket.assigns.command_queue
+
+    active_ops_count = length(ops)
+    queue_depth = length(queue)
+
+    critical_count = Enum.count(threats, fn t -> t.severity == "CRITICAL" end)
+
+    defcon_level =
+      cond do
+        critical_count >= 3 -> 1
+        critical_count >= 1 -> 2
+        length(threats) > 0 -> 3
+        true -> 4
+      end
+
+    socket
+    |> assign(:defcon_level, defcon_level)
+    |> assign(:active_ops_count, active_ops_count)
+    |> assign(:queue_depth, queue_depth)
   end
 
   defp update_active_operations(socket) do
@@ -553,9 +621,8 @@ defmodule ShepherdWeb.HqLive.Index2 do
     assign(socket, :active_operations, updated_ops)
   end
 
-  defp remove_threat(socket, id_str) do
-    id = String.to_integer(id_str)
-    threats = Enum.reject(socket.assigns.threats, fn t -> t.id == id end)
+  defp remove_threat(socket, id) do
+    threats = Enum.reject(socket.assigns.threats, fn t -> to_string(t.id) == to_string(id) end)
     assign(socket, :threats, threats)
   end
 

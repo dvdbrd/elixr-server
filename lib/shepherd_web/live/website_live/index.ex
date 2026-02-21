@@ -60,6 +60,7 @@ defmodule ShepherdWeb.WebsiteLive.Index do
       |> assign(:active_section, "website")
       |> assign(:active_tab, params["tab"])
       |> assign(:user_id, user_id)
+      |> assign(:notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(user_id))
       |> assign(:website, website)
       |> assign(:questions, questions)
       |> assign(:complaints, complaints)
@@ -184,7 +185,97 @@ defmodule ShepherdWeb.WebsiteLive.Index do
                   <span class="text-sm font-bold text-green-400 uppercase">═══ Report ═══</span>
                 </div>
               </div>
-              <p class="text-xs opacity-80">Report section content.</p>
+
+              <%= if @context["concept"] && @context["concept"] != "" do %>
+                <div class="space-y-4 max-w-3xl">
+                  <div class="border-2 border-green-500 terminal-glow">
+                    <div class="border-b-2 border-green-500 px-4 py-2 bg-terminal">
+                      <h3 class="text-xs font-bold text-green-400 uppercase">Website Analysis Report</h3>
+                    </div>
+                    <div class="p-4 space-y-3 text-xs">
+                      <%= if @context["concept"] do %>
+                        <div class="flex gap-3">
+                          <span class="text-green-400 uppercase w-36 flex-shrink-0">Concept:</span>
+                          <span class="opacity-80">{@context["concept"]}</span>
+                        </div>
+                      <% end %>
+                      <%= if @context["business_type"] do %>
+                        <div class="flex gap-3">
+                          <span class="text-green-400 uppercase w-36 flex-shrink-0">Business Type:</span>
+                          <span class="opacity-80">{@context["business_type"]}</span>
+                        </div>
+                      <% end %>
+                      <%= if @context["primary_cta"] do %>
+                        <div class="flex gap-3">
+                          <span class="text-green-400 uppercase w-36 flex-shrink-0">Primary CTA:</span>
+                          <span class="opacity-80">{@context["primary_cta"]}</span>
+                        </div>
+                      <% end %>
+                      <%= if @context["conversion_goal"] do %>
+                        <div class="flex gap-3">
+                          <span class="text-green-400 uppercase w-36 flex-shrink-0">Conversion Goal:</span>
+                          <span class="opacity-80">{@context["conversion_goal"]}</span>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <%= if @context["bottleneck_step"] || @context["bottleneck_issue"] do %>
+                    <div class="border-2 border-red-500">
+                      <div class="border-b-2 border-red-500 px-4 py-2 bg-terminal">
+                        <h3 class="text-xs font-bold text-red-400 uppercase">Bottleneck Identified</h3>
+                      </div>
+                      <div class="p-4 space-y-3 text-xs">
+                        <%= if @context["bottleneck_step"] do %>
+                          <div class="flex gap-3">
+                            <span class="text-red-400 uppercase w-36 flex-shrink-0">Failing Step:</span>
+                            <span class="opacity-80">{@context["bottleneck_step"]}</span>
+                          </div>
+                        <% end %>
+                        <%= if @context["bottleneck_issue"] do %>
+                          <div class="flex gap-3">
+                            <span class="text-red-400 uppercase w-36 flex-shrink-0">Why It Fails:</span>
+                            <span class="opacity-80">{@context["bottleneck_issue"]}</span>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <%= if not Enum.empty?(@commands) do %>
+                    <div class="border-2 border-green-500 terminal-glow">
+                      <div class="border-b-2 border-green-500 px-4 py-2 bg-terminal">
+                        <h3 class="text-xs font-bold text-green-400 uppercase">
+                          Pending Commands ({length(@commands)})
+                        </h3>
+                      </div>
+                      <div class="p-4 space-y-2">
+                        <%= for command <- @commands do %>
+                          <div class="flex items-start gap-3 text-xs border-b border-green-500 border-opacity-20 pb-2 last:border-0 last:pb-0">
+                            <span class={[
+                              "px-1.5 py-0.5 border uppercase font-bold flex-shrink-0",
+                              urgency_class(command.urgency)
+                            ]}>
+                              {command.urgency}
+                            </span>
+                            <span class="opacity-80">{command.command_text}</span>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-center border-2 border-green-500 terminal-glow p-8 max-w-3xl">
+                  <div class="text-4xl mb-4">◈</div>
+                  <h3 class="text-sm font-bold uppercase text-green-400 mb-2">
+                    No Report Available
+                  </h3>
+                  <p class="text-xs opacity-60">
+                    Run website analysis first to see your report.
+                  </p>
+                </div>
+              <% end %>
             </div>
           <% "brainstorm" -> %>
             <div class="p-4 lg:p-6">
@@ -193,7 +284,109 @@ defmodule ShepherdWeb.WebsiteLive.Index do
                   <span class="text-sm font-bold text-green-400 uppercase">═══ Brainstorm ═══</span>
                 </div>
               </div>
-              <p class="text-xs opacity-80">Brainstorm section content.</p>
+
+              <%= if @context["step_analysis"] do %>
+                <div class="space-y-4 max-w-3xl">
+                  <div class="border-2 border-green-500 terminal-glow">
+                    <div class="border-b-2 border-green-500 px-4 py-2 bg-terminal">
+                      <h3 class="text-xs font-bold text-green-400 uppercase">
+                        8-Step Conversion Ladder Analysis
+                      </h3>
+                    </div>
+                    <div class="divide-y divide-green-500 divide-opacity-20">
+                      <%= for {key, label} <- [
+                        {"step_1_attention", "Step 1: Attention"},
+                        {"step_2_engagement", "Step 2: Engagement"},
+                        {"step_3_comprehension", "Step 3: Comprehension"},
+                        {"step_4_belief", "Step 4: Belief"},
+                        {"step_5_desire", "Step 5: Desire"},
+                        {"step_6_urgency", "Step 6: Urgency"},
+                        {"step_7_intent", "Step 7: Intent"},
+                        {"step_8_action", "Step 8: Action"}
+                      ] do %>
+                        <%= if Map.get(@context["step_analysis"], key) do %>
+                          <% step = @context["step_analysis"][key] %>
+                          <% is_bottleneck = @context["bottleneck_step"] && String.contains?(String.downcase(@context["bottleneck_step"] || ""), String.downcase(label)) %>
+                          <div class={[
+                            "p-4",
+                            is_bottleneck && "bg-red-500 bg-opacity-5"
+                          ]}>
+                            <div class="flex items-center gap-3 mb-1">
+                              <span class="text-xs font-bold text-green-400 uppercase">{label}</span>
+                              <%= if step["status"] do %>
+                                <span class={[
+                                  "text-xs px-2 py-0.5 border uppercase font-bold",
+                                  step["status"] == "good" && "border-green-500 text-green-500",
+                                  step["status"] == "weak" && "border-yellow-500 text-yellow-500",
+                                  step["status"] == "failing" && "border-red-500 text-red-500"
+                                ]}>
+                                  {step["status"]}
+                                </span>
+                              <% end %>
+                              <%= if is_bottleneck do %>
+                                <span class="text-xs border border-red-500 text-red-400 px-2 py-0.5 uppercase">
+                                  Bottleneck
+                                </span>
+                              <% end %>
+                            </div>
+                            <%= if step["notes"] do %>
+                              <p class="text-xs opacity-70">{step["notes"]}</p>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <%= if @context["confusion"] && @context["confusion"] != [] do %>
+                    <div class="border-2 border-yellow-500">
+                      <div class="border-b-2 border-yellow-500 px-4 py-2 bg-terminal">
+                        <h3 class="text-xs font-bold text-yellow-400 uppercase">Visitor Confusion Points</h3>
+                      </div>
+                      <div class="p-4 space-y-2">
+                        <%= for item <- @context["confusion"] do %>
+                          <div class="flex items-start gap-2 text-xs">
+                            <span class="text-yellow-400 flex-shrink-0">▸</span>
+                            <span class="opacity-80">{item}</span>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <%= if @context["bottleneck_step"] || @context["bottleneck_issue"] do %>
+                    <div class="border-2 border-red-500">
+                      <div class="border-b-2 border-red-500 px-4 py-2 bg-terminal">
+                        <h3 class="text-xs font-bold text-red-400 uppercase">Primary Bottleneck</h3>
+                      </div>
+                      <div class="p-4 space-y-2 text-xs">
+                        <%= if @context["bottleneck_step"] do %>
+                          <div class="flex gap-3">
+                            <span class="text-red-400 uppercase w-28 flex-shrink-0">Failing Step:</span>
+                            <span class="opacity-80">{@context["bottleneck_step"]}</span>
+                          </div>
+                        <% end %>
+                        <%= if @context["bottleneck_issue"] do %>
+                          <div class="flex gap-3">
+                            <span class="text-red-400 uppercase w-28 flex-shrink-0">Root Cause:</span>
+                            <span class="opacity-80">{@context["bottleneck_issue"]}</span>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-center border-2 border-green-500 terminal-glow p-8 max-w-3xl">
+                  <div class="text-4xl mb-4">◈</div>
+                  <h3 class="text-sm font-bold uppercase text-green-400 mb-2">
+                    No Brainstorm Data Available
+                  </h3>
+                  <p class="text-xs opacity-60">
+                    Run website analysis first to brainstorm improvements.
+                  </p>
+                </div>
+              <% end %>
             </div>
           <% "settings" -> %>
             <div class="p-4 lg:p-6">
@@ -420,8 +613,10 @@ defmodule ShepherdWeb.WebsiteLive.Index do
               answer: answer
             })
           else
-            # TODO: Process complaint answers with :on_complaint_answered directive
-            {:ok, nil}
+            DirectiveProcessor.process("question_followup", %{
+              question_id: answered_question.id,
+              user_id: user_id
+            })
           end
 
         _ = result
@@ -488,10 +683,10 @@ defmodule ShepherdWeb.WebsiteLive.Index do
 
         case Repo.update(changeset) do
           {:ok, updated_website} ->
-            {:noreply, assign(socket, :website, updated_website)}
+            {:noreply, socket |> assign(:website, updated_website) |> put_flash(:info, "Website URL updated")}
 
           {:error, _changeset} ->
-            {:noreply, socket}
+            {:noreply, put_flash(socket, :error, "Failed to update website URL")}
         end
     end
   end
@@ -544,7 +739,7 @@ defmodule ShepherdWeb.WebsiteLive.Index do
 
     case CommandManager.complete_command(user_id, command_id) do
       {:ok, _completed_command} ->
-        socket = reload_commands(socket, user_id, website.id)
+        socket = socket |> reload_commands(user_id, website.id) |> refresh_notification_counts()
         {:noreply, socket}
 
       {:error, _} ->
@@ -564,7 +759,7 @@ defmodule ShepherdWeb.WebsiteLive.Index do
 
     case CommandManager.dismiss_command(user_id, command_id) do
       {:ok, _dismissed_command} ->
-        socket = reload_commands(socket, user_id, website.id)
+        socket = socket |> reload_commands(user_id, website.id) |> refresh_notification_counts()
         {:noreply, socket}
 
       {:error, _} ->
@@ -648,6 +843,10 @@ defmodule ShepherdWeb.WebsiteLive.Index do
       {render_slot(@inner_block)}
     </.link>
     """
+  end
+
+  defp refresh_notification_counts(socket) do
+    assign(socket, :notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(socket.assigns.user_id))
   end
 
   defp maybe_update_page_title(socket, tab) do

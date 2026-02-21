@@ -8,6 +8,7 @@ defmodule Shepherd.LLM.WebsiteManager do
   alias Shepherd.Repo
   alias Shepherd.Websites.{Website, WebsiteContext, UserQuestion}
   alias Shepherd.LLM.Directives
+  alias Shepherd.Analytics.ActionLog
   require Logger
 
   @doc """
@@ -155,8 +156,12 @@ defmodule Shepherd.LLM.WebsiteManager do
           changeset = UserQuestion.answer_changeset(question, %{answer: answer})
 
           case Repo.update(changeset) do
-            {:ok, updated_question} -> {:ok, updated_question}
-            {:error, changeset} -> {:error, changeset}
+            {:ok, updated_question} ->
+              ActionLog.log_question_answered(user_id, question_id, to_string(answer), 0)
+              {:ok, updated_question}
+
+            {:error, changeset} ->
+              {:error, changeset}
           end
       end
     end
@@ -182,16 +187,9 @@ defmodule Shepherd.LLM.WebsiteManager do
         {:error, :not_found}
 
       question ->
-        changeset =
-          UserQuestion.changeset(question, %{
-            status: "dismissed",
-            answered_at: DateTime.utc_now() |> DateTime.truncate(:second)
-          })
-
-        case Repo.update(changeset) do
-          {:ok, updated_question} -> {:ok, updated_question}
-          {:error, changeset} -> {:error, changeset}
-        end
+        question
+        |> UserQuestion.dismiss_changeset(%{})
+        |> Repo.update()
     end
   end
 
@@ -555,6 +553,12 @@ defmodule Shepherd.LLM.WebsiteManager do
       {:ok, website} ->
         Logger.info("Website created: #{website.id}, status=pending_analysis")
         Logger.info("Run 'bin/analyze_websites.sh' to analyze with Claude Code")
+        ActionLog.log(%{
+          user_id: website.user_id,
+          action_type: "website_added",
+          entity_type: "website",
+          entity_id: website.id
+        })
         {:ok, website}
 
       {:error, changeset} ->

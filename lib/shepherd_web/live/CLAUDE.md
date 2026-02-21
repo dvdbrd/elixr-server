@@ -37,21 +37,21 @@ Primary dashboard showing LLM feedback stats, urgent items, domain cards, and ac
 
 ### `HqLive.Index2` -- `/hq2`
 
-DEFCON-style ops UI with threat board, active operations with progress bars, command queue, and domain status panel. Uses 1-second tick intervals for progress bar animation. All data is hardcoded (demo/mock data, no database queries).
+DEFCON-style ops UI with threat board, active operations with progress bars, command queue, and domain status panel. Uses 1-second tick intervals for progress bar animation. Loads real data from the database for threats, operations, queue, and domain status.
 
-**Dependencies:** None (no context modules, all data is hardcoded)
+**Dependencies:** `Shepherd.LLM.CommandManager`, `Shepherd.Repo`, `Ecto.Query`, `Shepherd.Commands.Command`
 
 **Assigns:**
 - `:page_title` -- `"HQ v2"`
 - `:active_section` -- `"hq"`
 - `:command_input` -- text input state for command bar
-- `:defcon_level` -- integer (default 2)
-- `:active_ops_count` -- integer (default 4)
-- `:queue_depth` -- integer (default 12)
-- `:threats` -- list of threat maps (hardcoded)
-- `:active_operations` -- list of operation maps with progress (hardcoded, ticked)
-- `:command_queue` -- list of command maps (hardcoded + user-submitted)
-- `:domain_status` -- list of domain health maps (hardcoded)
+- `:defcon_level` -- computed from threat severity levels
+- `:active_ops_count` -- count of in-progress operations
+- `:queue_depth` -- count of pending commands
+- `:threats` -- list of threat maps (from database)
+- `:active_operations` -- list of operation maps with progress (from database, ticked)
+- `:command_queue` -- list of command maps (from database + user-submitted)
+- `:domain_status` -- list of domain health maps (from database)
 
 **Events:**
 - `"deploy_threat"` (`id`) -- removes threat from board
@@ -83,8 +83,8 @@ Multi-mode command center with four view modes: threat, pulse, domain, and triag
 - `:triage_index` -- integer, current position in triage queue
 - `:command_input` -- text input state for command bar
 - `:user_id` -- from `current_scope.user.id`
-- `:signals` -- list of signal maps built from pending `UserCommand` records
-- `:domain_pulse` -- list of domain health/velocity maps (hardcoded)
+- `:signals` -- list of signal maps built from pending `UserCommand` records (from database)
+- `:domain_pulse` -- list of domain health/velocity maps (from database queries)
 
 **Events:**
 - `"switch_mode"` (`mode`) -- changes view mode
@@ -168,20 +168,20 @@ Full-featured website management view with sidebar navigation and five tabs: com
 
 ### `TerminalLive.Index` -- `/terminal`
 
-Simulated terminal monitoring UI with live clock, process progress bars, agent status matrix, queue stats, system vitals, control buttons, and a scrolling system log. All data is hardcoded (demo). Uses 1-second tick intervals.
+Simulated terminal monitoring UI with live clock, process progress bars, agent status matrix, queue stats, system vitals, control buttons, and a scrolling system log. Loads real queue data and active process information from the database. Uses 1-second tick intervals.
 
-**Dependencies:** None (all data is hardcoded)
+**Dependencies:** `Shepherd.LLM.CommandManager`, `Shepherd.Repo`, `Ecto.Query`, `Shepherd.Commands.Command`
 
 **Assigns:**
 - `:page_title` -- `"Terminal"`
 - `:active_section` -- `"terminal"`
 - `:uptime_seconds` -- integer, incremented every tick
-- `:system_load` -- integer (hardcoded 84)
-- `:active_agents` -- integer (hardcoded 17)
-- `:active_processes` -- list of process maps with progress bars
-- `:agent_status` -- list of agent maps (hardcoded)
-- `:queue_data` -- map with task counts by department (hardcoded)
-- `:system_vitals` -- map with token/API/resource usage (hardcoded)
+- `:system_load` -- computed from active processes
+- `:active_agents` -- count of active process records
+- `:active_processes` -- list of process maps with progress bars (from database)
+- `:agent_status` -- list of agent maps (from database)
+- `:queue_data` -- map with task counts by department (from database queries)
+- `:system_vitals` -- map with token/API/resource usage (computed from metrics)
 - `:log_entries` -- list of log entry maps, grows over time
 
 **Events:**
@@ -194,16 +194,16 @@ Simulated terminal monitoring UI with live clock, process progress bars, agent s
 
 ## Sidebar-Navigation Domain Views (Scaffold/Demo)
 
-These views share the same pattern: sidebar with tab links, tab content via `handle_params`, and hardcoded demo `command_card` components with [Done]/[No]/[Push] buttons wired to flash-based event handlers. They extract `current_scope.user.id` in `mount/3` for future database integration.
+These views share the same pattern: sidebar with tab links, tab content via `handle_params`, and domain-specific `command_card` components with [Done]/[No]/[Push] buttons wired to `CommandManager` backend operations. They extract `current_scope.user.id` in `mount/3` for database integration.
 
 **Common pattern:**
-- `mount/3`: extracts `user_id` from `current_scope.user.id`, assigns `:page_title`, `:active_section`, `:active_tab`, `:user_id`
+- `mount/3`: extracts `user_id` from `current_scope.user.id`, assigns `:page_title`, `:active_section`, `:active_tab`, `:user_id`, loads initial commands from database
 - `handle_params/3`: updates `:active_tab` and `:page_title` from URL params
 - `handle_event("change_tab", ...)`: uses `push_patch` to update URL
-- `handle_event("command_done", ...)`: shows flash "Command marked as done"
-- `handle_event("command_dismiss", ...)`: shows flash "Command dismissed"
-- `handle_event("command_push", ...)`: shows flash "Command pushed to queue"
-- Components: domain-specific `_sidebar`, shared `sidebar_nav_link` (with active state styling), `command_card` (with `id`, `title`, `explanation` attrs)
+- `handle_event("command_done", ...)`: calls `CommandManager.complete_command/2`, shows flash confirmation
+- `handle_event("command_dismiss", ...)`: calls `CommandManager.dismiss_command/2`, shows flash confirmation
+- `handle_event("command_push", ...)`: reorders command via priority update
+- Components: domain-specific `_sidebar`, shared `sidebar_nav_link` (with active state styling), `command_card` (with `id`, `title`, `explanation` attrs, wired to CommandManager)
 
 ### `AppLive.Index` -- `/app`
 Tabs: backlog, bugs, pull_requests, deployments, documentation, settings. First tab ("backlog") and "bugs" and "deployments" have hardcoded command cards. Others are placeholder text.
@@ -298,9 +298,6 @@ These views use the standard `Layouts.app` layout (not the terminal theme). They
 
 ## Known Issues
 
-- `HqLive.Index2` and `TerminalLive.Index` use entirely hardcoded demo data with no database integration
-- Sidebar domain views (`AppLive`, `MarketingLive`, `FunnelLive`, `SalesLive`, `HrLive`, `CustomersLive`) have [Done]/[No]/[Push] buttons wired to flash-based event handlers (demo/scaffold -- no database integration yet)
-- `HqLive.Index3` domain pulse data is hardcoded (not derived from database); only signals are loaded from the database
 - `HqLive.Index3` `"submit_command"` event clears input but does not actually create a command in the database
 
 ---

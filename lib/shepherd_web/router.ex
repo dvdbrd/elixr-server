@@ -1,6 +1,5 @@
 defmodule ShepherdWeb.Router do
   use ShepherdWeb, :router
-  # TODO: Add rate limiting plug (e.g., hammer or ex_rated) for auth and API routes
 
   import ShepherdWeb.UserAuth
 
@@ -10,12 +9,20 @@ defmodule ShepherdWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {ShepherdWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+    plug :put_secure_browser_headers, %{
+      "content-security-policy" =>
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:"
+    }
     plug :fetch_current_scope_for_user
   end
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug ShepherdWeb.Plugs.RateLimit, limit: 60, period: 60_000, prefix: "api"
+  end
+
+  pipeline :rate_limited_auth do
+    plug ShepherdWeb.Plugs.RateLimit, limit: 5, period: 60_000, prefix: "auth"
   end
 
   scope "/", ShepherdWeb do
@@ -78,7 +85,7 @@ defmodule ShepherdWeb.Router do
   end
 
   scope "/", ShepherdWeb do
-    pipe_through [:browser]
+    pipe_through [:browser, :rate_limited_auth]
 
     live_session :current_user,
       on_mount: [{ShepherdWeb.UserAuth, :mount_current_scope}],

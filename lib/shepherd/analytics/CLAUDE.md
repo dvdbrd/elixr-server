@@ -118,21 +118,27 @@ None. `user_id` is a plain integer field with a unique constraint, not a `belong
 
 - **`maybe_set_updated_at/1`** -- Always sets `updated_at` to `DateTime.utc_now()` truncated to the second on every changeset.
 
+---
+
+### `Shepherd.Analytics` (Context Module)
+
+Context module providing CRUD operations and queries for action logs and user behavior metrics.
+
+#### Functions
+
+- **`list_recent_actions/2`** -- Fetches recent action logs for a user, ordered by timestamp descending. Params: `(user_id, limit)`. Returns list of `ActionLog` records.
+- **`log_action/1`** -- Creates and inserts an action log entry. Params: `(attrs_map)`. Returns `{:ok, action_log}` or `{:error, changeset}`.
+- **`get_metrics/1`** -- Retrieves a user's behavior metrics. Params: `(user_id)`. Returns `{:ok, metric}` or `{:error, :not_found}`.
+- **`create_metrics/1`** -- Creates a new behavior metric record. Params: `(attrs)`. Returns `{:ok, metric}` or `{:error, changeset}`.
+- **`recalculate_metrics/1`** -- Aggregates recent action logs and updates the user's behavior metric. Params: `(user_id)`. Computes procrastination score and completion rates from action history.
+
 ## Integration Status
 
-- **No context module exists.** There is no `Shepherd.Analytics` context module wrapping queries or business logic. Both schemas call `Shepherd.Repo` directly (only `ActionLog.log/1` does so).
-- **No LiveView integration.** No LiveView or controller references, aliases, or calls any analytics module.
-- **No tests.** No test files exist for this module.
-- **No callers.** `log/1`, `log_question_answered/4`, and `log_command_completed/3` are defined but never invoked from anywhere in the codebase. The `UserBehaviorMetric` pure functions (`recommend_communication_style/1`, `procrastinating?/1`, `calculate_procrastination_score/1`) are also uncalled.
-
-## TODO
-
-- Create a `Shepherd.Analytics` context module to wrap Repo operations and provide a public API.
-- Integrate `ActionLog.log/1` calls into LiveView event handlers to begin collecting action data.
-- Build a periodic job (e.g., Oban worker) to aggregate `action_logs` into `user_behavior_metrics`.
-- Wire `recommend_communication_style/1` and `procrastinating?/1` into LLM prompt generation for personality adaptation.
-- Add `belongs_to :user` associations (requires adding foreign key constraints to migrations).
-- Write tests for changesets, pure functions, and future context module.
+- **Context module exists.** `Shepherd.Analytics` context module at `lib/shepherd/analytics.ex` provides CRUD and query operations for action logs and user behavior metrics.
+- **LiveView integration.** HQ Index LiveView (`HqLive.Index`) uses `Analytics.list_recent_actions/2` to fetch recent activity data.
+- **Tests exist.** Test suite includes action log tests, user behavior metric tests, and context module integration tests.
+- **Callers wired.** `ActionLog.log` calls are invoked from `CommandManager.complete_command/2`, `CommandManager.dismiss_command/2`, `WebsiteManager.record_answer/3`, and `WebsiteManager.create_website_with_scan/1`.
+- **Metrics aggregation.** `MetricsAggregationWorker` Oban job periodically recalculates `user_behavior_metrics` via `Shepherd.Analytics.recalculate_metrics/1`.
 
 ## Auto-Update Rules
 

@@ -1,8 +1,14 @@
 defmodule ShepherdWeb.TerminalLive.Index do
   use ShepherdWeb, :live_view
+  import Ecto.Query, except: [update: 3]
+  alias Shepherd.Commands.Command
+  alias Shepherd.LLM.CommandManager
+  alias Shepherd.Repo
 
   @impl true
   def mount(_params, _session, socket) do
+    user_id = socket.assigns.current_scope.user.id
+
     if connected?(socket) do
       :timer.send_interval(1000, self(), :tick)
     end
@@ -11,6 +17,8 @@ defmodule ShepherdWeb.TerminalLive.Index do
       socket
       |> assign(:page_title, "Terminal")
       |> assign(:active_section, "terminal")
+      |> assign(:user_id, user_id)
+      |> assign(:notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(user_id))
       |> assign(:uptime_seconds, 607337)
       |> assign(:system_load, 84)
       |> assign(:active_agents, 17)
@@ -149,10 +157,10 @@ defmodule ShepherdWeb.TerminalLive.Index do
                   [<%= render_bar(@queue_data.total_percent, 12) %>] <%= @queue_data.total %> TASKS
                 </div>
                 <div class="space-y-1 opacity-80">
-                  <div>MARKETING:     <%= String.pad_leading("#{@queue_data.marketing}", 3) %> tasks</div>
-                  <div>SALES:         <%= String.pad_leading("#{@queue_data.sales}", 3) %> tasks</div>
-                  <div>SUPPORT:       <%= String.pad_leading("#{@queue_data.support}", 3) %> tasks</div>
-                  <div>ANALYTICS:     <%= String.pad_leading("#{@queue_data.analytics}", 3) %> tasks</div>
+                  <div>PENDING:       <%= String.pad_leading("#{@queue_data.pending}", 3) %> tasks</div>
+                  <div>COMPLETED:     <%= String.pad_leading("#{@queue_data.completed}", 3) %> tasks</div>
+                  <div>DISMISSED:     <%= String.pad_leading("#{@queue_data.dismissed}", 3) %> tasks</div>
+                  <div>OVERDUE:       <%= String.pad_leading("#{@queue_data.overdue}", 3) %> tasks</div>
                 </div>
                 <div class="opacity-60 mt-2">EST. TIME: ~<%= @queue_data.est_time %> minutes</div>
               </div>
@@ -237,80 +245,111 @@ defmodule ShepherdWeb.TerminalLive.Index do
   # Helper Functions
 
   defp assign_active_processes(socket) do
-    processes = [
-      %{
-        name: "CONTENT_GENERATION_01",
-        description: "Processing batch 47/89... 2.4MB data analyzed",
-        progress: 67,
-        eta: "04:23"
-      },
-      %{
-        name: "LEAD_QUALIFICATION_03",
-        description: "Analyzing 12 leads... pattern matching in progress",
-        progress: 40,
-        eta: "08:15"
-      },
-      %{
-        name: "SENTIMENT_ANALYSIS_02",
-        description: "Processing 2,847 messages... sentiment mapping active",
-        progress: 78,
-        eta: "02:45"
-      },
-      %{
-        name: "MARKETING_OPTIMIZER_01",
-        description: "Campaign analysis... calculating ROI projections",
-        progress: 23,
-        eta: "12:08"
-      }
-    ]
+    user_id = socket.assigns.user_id
+
+    commands =
+      from(c in Command,
+        where: c.user_id == ^user_id and c.status == "pending",
+        order_by: [desc: c.inserted_at],
+        limit: 4
+      )
+      |> Repo.all()
+
+    processes =
+      Enum.map(commands, fn command ->
+        %{
+          name: String.upcase(String.replace(command.entity_type, " ", "_")) <> "_PROC",
+          description: String.slice(command.command_text, 0, 60),
+          progress: 0,
+          eta: "--:--"
+        }
+      end)
 
     assign(socket, :active_processes, processes)
   end
 
   defp assign_agent_status(socket) do
-    agents = [
-      %{name: "CONTENT_GENERATOR", status: "ACTIVE", status_icon: "●", tasks: 47, info: "LAST: 00:00:12"},
-      %{name: "SALES_QUALIFIER", status: "PROC", status_icon: "●", tasks: 3, info: "ETA: 00:04:00"},
-      %{name: "SUPPORT_RESPONDER", status: "IDLE", status_icon: "○", tasks: 0, info: "LAST: 00:03:24"},
-      %{name: "ANALYTICS_ENGINE", status: "ACTIVE", status_icon: "●", tasks: 1, info: "DATASET#23"},
-      %{name: "MARKETING_OPTIMIZER", status: "QUEUE", status_icon: "■", tasks: 8, info: "WAIT: 00:08:30"},
-      %{name: "CUSTOMER_INTEL", status: "ACTIVE", status_icon: "●", tasks: 12, info: "PATTERNS"},
-      %{name: "EMAIL_COMPOSER", status: "IDLE", status_icon: "○", tasks: 0, info: "LAST: 00:15:42"},
-      %{name: "PRICE_ANALYZER", status: "ACTIVE", status_icon: "●", tasks: 5, info: "MARKET_01"}
+    user_id = socket.assigns.user_id
+
+    # Build agent status from real pending command counts per domain
+    domain_counts =
+      from(c in Command,
+        where: c.user_id == ^user_id and c.status == "pending",
+        group_by: c.entity_type,
+        select: {c.entity_type, count(c.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    domain_agents = [
+      {"website", "WEBSITE_ANALYZER"},
+      {"app", "APP_MANAGER"},
+      {"marketing", "MARKETING_OPTIMIZER"},
+      {"funnel", "FUNNEL_TRACKER"},
+      {"sales", "SALES_QUALIFIER"},
+      {"hr", "HR_COORDINATOR"},
+      {"customers", "CUSTOMER_INTEL"}
     ]
+
+    agents =
+      Enum.map(domain_agents, fn {domain, name} ->
+        task_count = Map.get(domain_counts, domain, 0)
+        {status, icon} = if task_count > 0, do: {"ACTIVE", "●"}, else: {"IDLE", "○"}
+
+        %{
+          name: name,
+          status: status,
+          status_icon: icon,
+          tasks: task_count,
+          info: if(task_count > 0, do: "PENDING: #{task_count}", else: "STANDBY")
+        }
+      end)
 
     assign(socket, :agent_status, agents)
   end
 
   defp assign_queue_data(socket) do
+    user_id = socket.assigns.user_id
+
+    stats = CommandManager.get_command_stats(user_id)
+
+    total = stats.pending + stats.completed + stats.dismissed + stats.overdue
+    total_percent = if total > 0, do: min(round(stats.pending / total * 100), 100), else: 0
+    est_time = stats.pending * 2
+
     queue = %{
-      total: 234,
-      total_percent: 65,
-      marketing: 89,
-      sales: 67,
-      support: 45,
-      analytics: 33,
-      est_time: 47
+      total: total,
+      total_percent: total_percent,
+      pending: stats.pending,
+      completed: stats.completed,
+      dismissed: stats.dismissed,
+      overdue: stats.overdue,
+      est_time: est_time
     }
 
     assign(socket, :queue_data, queue)
   end
 
   defp assign_system_vitals(socket) do
+    user_id = socket.assigns.user_id
+    stats = CommandManager.get_command_stats(user_id)
+    total_commands = stats.pending + stats.completed + stats.dismissed + stats.overdue
+    completion_rate = if total_commands > 0, do: round(stats.completed / total_commands * 100), else: 0
+
     vitals = %{
-      tokens_used: "2.4M",
-      tokens_limit: "5.0M",
-      tokens_percent: 48,
-      api_calls: "847K",
-      api_limit: "1.0M",
-      api_percent: 84,
-      avg_response: 847,
-      cache_hit: 91.3,
-      sessions: 17,
-      cpu_load: 84,
-      memory_used: "12.4GB",
-      memory_total: "16.0GB",
-      disk_io: 234
+      tokens_used: "#{total_commands}",
+      tokens_limit: "commands",
+      tokens_percent: min(completion_rate, 100),
+      api_calls: "#{stats.completed}",
+      api_limit: "completed",
+      api_percent: completion_rate,
+      avg_response: stats.pending,
+      cache_hit: if(total_commands > 0, do: Float.round(stats.completed / total_commands * 100, 1), else: 0.0),
+      sessions: stats.overdue,
+      cpu_load: min(stats.pending * 10, 100),
+      memory_used: "#{stats.pending}",
+      memory_total: "#{total_commands}",
+      disk_io: stats.dismissed
     }
 
     assign(socket, :system_vitals, vitals)

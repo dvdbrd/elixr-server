@@ -140,12 +140,15 @@ defmodule Shepherd.LLM.FeedbackManager do
   def expire_old_feedback do
     now = DateTime.utc_now()
 
-    from(f in Feedback,
-      where: f.status == "active",
-      where: not is_nil(f.expires_at),
-      where: f.expires_at <= ^now
-    )
-    |> Repo.update_all(set: [status: "expired", updated_at: now |> DateTime.truncate(:second)])
+    {count, _} =
+      from(f in Feedback,
+        where: f.status == "active",
+        where: not is_nil(f.expires_at),
+        where: f.expires_at <= ^now
+      )
+      |> Repo.update_all(set: [status: "expired", updated_at: now |> DateTime.truncate(:second)])
+
+    {:ok, count}
   end
 
   @doc """

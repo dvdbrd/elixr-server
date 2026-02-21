@@ -1,5 +1,8 @@
 defmodule ShepherdWeb.HqLive.Index do
   use ShepherdWeb, :live_view
+  import Ecto.Query
+  alias Shepherd.Analytics
+  alias Shepherd.Commands.Command
   alias Shepherd.LLM.FeedbackManager
 
   @impl true
@@ -11,8 +14,10 @@ defmodule ShepherdWeb.HqLive.Index do
       |> assign(:page_title, "HQ")
       |> assign(:active_section, "hq")
       |> assign(:user_id, user_id)
+      |> assign(:notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(user_id))
       |> load_feedback_data()
       |> load_stats()
+      |> load_domain_stats()
 
     {:ok, socket}
   end
@@ -27,6 +32,7 @@ defmodule ShepherdWeb.HqLive.Index do
           socket
           |> load_feedback_data()
           |> load_stats()
+          |> refresh_notification_counts()
           |> put_flash(:info, "Feedback acknowledged")
 
         {:noreply, socket}
@@ -46,6 +52,7 @@ defmodule ShepherdWeb.HqLive.Index do
           socket
           |> load_feedback_data()
           |> load_stats()
+          |> refresh_notification_counts()
           |> put_flash(:info, "Feedback dismissed")
 
         {:noreply, socket}
@@ -167,43 +174,15 @@ defmodule ShepherdWeb.HqLive.Index do
           </div>
           <div class="p-3">
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <.domain_card
-                name="Website"
-                icon="hero-globe-alt"
-                pending_tasks={3}
-                link="/website"
-                status="healthy"
-              />
-              <.domain_card name="App" icon="hero-code-bracket" pending_tasks={5} link="/app" status="warning" />
-              <.domain_card
-                name="Marketing"
-                icon="hero-megaphone"
-                pending_tasks={2}
-                link="/marketing"
-                status="healthy"
-              />
-              <.domain_card name="Funnel" icon="hero-funnel" pending_tasks={1} link="/funnel" status="healthy" />
-              <.domain_card
-                name="Sales"
-                icon="hero-currency-dollar"
-                pending_tasks={4}
-                link="/sales"
-                status="healthy"
-              />
-              <.domain_card
-                name="HR"
-                icon="hero-user-group"
-                pending_tasks={2}
-                link="/hr"
-                status="healthy"
-              />
-              <.domain_card
-                name="Customers"
-                icon="hero-user-circle"
-                pending_tasks={3}
-                link="/customers"
-                status="warning"
-              />
+              <%= for domain <- @domain_stats do %>
+                <.domain_card
+                  name={domain.name}
+                  icon={domain.icon}
+                  pending_tasks={domain.pending_tasks}
+                  link={domain.link}
+                  status={domain.status}
+                />
+              <% end %>
             </div>
           </div>
         </div>
@@ -407,6 +386,10 @@ defmodule ShepherdWeb.HqLive.Index do
   # HELPER FUNCTIONS
   # ============================================================================
 
+  defp refresh_notification_counts(socket) do
+    assign(socket, :notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(socket.assigns.user_id))
+  end
+
   defp load_feedback_data(socket) do
     user_id = socket.assigns.user_id
     all_feedback = FeedbackManager.get_active_feedback(user_id)
@@ -445,6 +428,40 @@ defmodule ShepherdWeb.HqLive.Index do
     |> assign(:completion_display, comp_display)
     |> assign(:completion_status, comp_status)
     |> assign(:completion_trend, comp_trend)
+  end
+
+  defp load_domain_stats(socket) do
+    user_id = socket.assigns.user_id
+
+    counts =
+      from(c in Command,
+        where: c.user_id == ^user_id and c.status == "pending",
+        group_by: c.entity_type,
+        select: {c.entity_type, count(c.id)}
+      )
+      |> Shepherd.Repo.all()
+      |> Map.new()
+
+    domain_stats =
+      for {name, entity_type, icon, link} <- domain_definitions() do
+        count = Map.get(counts, entity_type, 0)
+        status = if count > 4, do: "warning", else: "healthy"
+        %{name: name, icon: icon, pending_tasks: count, link: link, status: status}
+      end
+
+    assign(socket, :domain_stats, domain_stats)
+  end
+
+  defp domain_definitions do
+    [
+      {"Website", "website", "hero-globe-alt", "/website"},
+      {"App", "app", "hero-code-bracket", "/app"},
+      {"Marketing", "marketing", "hero-megaphone", "/marketing"},
+      {"Funnel", "funnel", "hero-funnel", "/funnel"},
+      {"Sales", "sales", "hero-currency-dollar", "/sales"},
+      {"HR", "hr", "hero-user-group", "/hr"},
+      {"Customers", "customers", "hero-user-circle", "/customers"}
+    ]
   end
 
   defp extract_procrastination_data(feedback_list) do
@@ -511,49 +528,60 @@ defmodule ShepherdWeb.HqLive.Index do
   end
 
   defp build_recent_activity(user_id) do
-    all = FeedbackManager.get_all_feedback(user_id, 10)
+    recent = Analytics.list_recent_actions(user_id, 10)
 
-    all
-    |> Enum.filter(&(&1.status in ["acknowledged", "dismissed"]))
-    |> Enum.take(5)
-    |> Enum.map(fn feedback ->
-      action =
-        case feedback.status do
-          "acknowledged" -> "completed"
-          "dismissed" -> "rejected"
-          _ -> "started"
-        end
+    activities =
+      recent
+      |> Enum.map(fn log ->
+        %{
+          action: action_log_to_action(log.action_type),
+          domain: action_log_to_domain(log.action_type, log.entity_type),
+          title: action_log_title(log),
+          time: time_ago(log.timestamp)
+        }
+      end)
 
-      time_at = feedback.acknowledged_at || feedback.dismissed_at || feedback.inserted_at
-
-      %{
-        action: action,
-        domain: feedback_type_to_domain(feedback.feedback_type),
-        title: feedback.title,
-        time: time_ago(time_at)
-      }
-    end)
-    |> then(fn activities ->
-      # If no activities, show dummy data
-      if Enum.empty?(activities) do
-        [
-          %{action: "completed", domain: "Feedback", title: "No recent activity", time: "N/A"}
-        ]
-      else
-        activities
-      end
-    end)
+    if Enum.empty?(activities) do
+      [%{action: "completed", domain: "System", title: "No recent activity", time: "N/A"}]
+    else
+      activities
+    end
   end
 
-  defp feedback_type_to_domain(feedback_type) do
-    case feedback_type do
-      "daily_summary" -> "Summary"
-      "weekly_summary" -> "Summary"
-      "procrastination_warning" -> "Manager"
-      "harsh_warning" -> "Manager"
-      "encouragement" -> "Manager"
-      "performance_review" -> "Analysis"
+  defp action_log_to_action(action_type) do
+    case action_type do
+      "command_completed" -> "completed"
+      "question_answered" -> "completed"
+      "website_added" -> "started"
+      "website_scanned" -> "started"
+      "command_dismissed" -> "rejected"
+      "question_dismissed" -> "rejected"
+      "context_updated" -> "started"
+      "settings_updated" -> "completed"
+      _ -> "started"
+    end
+  end
+
+  defp action_log_to_domain(_action_type, entity_type) do
+    case entity_type do
+      "website" -> "Website"
+      "command" -> "Commands"
+      "user_question" -> "Questions"
       _ -> "System"
+    end
+  end
+
+  defp action_log_title(log) do
+    case log.action_type do
+      "command_completed" -> "Command completed"
+      "command_dismissed" -> "Command dismissed"
+      "question_answered" -> "Question answered"
+      "question_dismissed" -> "Question dismissed"
+      "website_added" -> "Website added"
+      "website_scanned" -> "Website scanned"
+      "context_updated" -> "Context updated"
+      "settings_updated" -> "Settings updated"
+      _ -> log.action_type
     end
   end
 

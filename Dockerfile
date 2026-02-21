@@ -11,9 +11,9 @@
 #   - https://pkgs.org/ - resource for finding needed packages
 #   - Ex: hexpm/elixir:1.15.7-erlang-26.2.1-debian-bookworm-20240130-slim
 #
-ARG ELIXIR_VERSION=1.15.7
-ARG OTP_VERSION=26.2.1
-ARG DEBIAN_VERSION=bookworm-20240130-slim
+ARG ELIXIR_VERSION=1.17.3
+ARG OTP_VERSION=27.2
+ARG DEBIAN_VERSION=bookworm-20241016-slim
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
@@ -91,4 +91,7 @@ USER nobody
 
 # If using an environment that doesn't automatically reap zombie processes
 # run the release using "tini" or set RELEASE_DISTRIBUTION=none
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD wget -qO- http://localhost:${PORT:-4000}/api/health || exit 1
+
 CMD ["/app/bin/server"]

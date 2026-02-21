@@ -7,6 +7,7 @@ defmodule Shepherd.LLM.CommandManager do
   import Ecto.Query
   alias Shepherd.Repo
   alias Shepherd.Commands.Command
+  alias Shepherd.Analytics.ActionLog
 
   @doc """
   Get all pending commands for a user and entity.
@@ -19,6 +20,28 @@ defmodule Shepherd.LLM.CommandManager do
           c.user_id == ^user_id and
             c.entity_type == ^entity_type and
             c.entity_id == ^entity_id and
+            c.status == "pending",
+        order_by: [
+          asc:
+            fragment(
+              "CASE ? WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 END",
+              c.urgency
+            ),
+          asc: c.inserted_at
+        ]
+
+    {:ok, Repo.all(query)}
+  end
+
+  @doc """
+  Get all pending commands for a user and entity type (any entity_id).
+  """
+  def get_pending_commands_by_type(user_id, entity_type) do
+    query =
+      from c in Command,
+        where:
+          c.user_id == ^user_id and
+            c.entity_type == ^entity_type and
             c.status == "pending",
         order_by: [
           asc:
@@ -95,9 +118,14 @@ defmodule Shepherd.LLM.CommandManager do
         {:error, :not_found}
 
       command ->
-        command
-        |> Command.complete_changeset()
-        |> Repo.update()
+        case command |> Command.complete_changeset() |> Repo.update() do
+          {:ok, updated} ->
+            ActionLog.log_command_completed(user_id, command_id, 0)
+            {:ok, updated}
+
+          error ->
+            error
+        end
     end
   end
 
@@ -115,9 +143,19 @@ defmodule Shepherd.LLM.CommandManager do
         {:error, :not_found}
 
       command ->
-        command
-        |> Command.dismiss_changeset()
-        |> Repo.update()
+        case command |> Command.dismiss_changeset() |> Repo.update() do
+          {:ok, updated} ->
+            ActionLog.log(%{
+              user_id: user_id,
+              action_type: "command_dismissed",
+              entity_type: "command",
+              entity_id: command_id
+            })
+            {:ok, updated}
+
+          error ->
+            error
+        end
     end
   end
 

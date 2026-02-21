@@ -3,6 +3,7 @@ defmodule ShepherdWeb.Navbar do
   import ShepherdWeb.CustomIcons
 
   attr :active_section, :string, default: "search"
+  attr :notification_counts, :map, default: %{}
 
   def navbar(assigns) do
     ~H"""
@@ -15,64 +16,64 @@ defmodule ShepherdWeb.Navbar do
           icon="dashboard"
           section="hq"
           active={@active_section == "hq"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "hq", 0)}
         />
         <.nav_icon
           icon="globe"
           section="website"
           active={@active_section == "website"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "website", 0)}
         />
         <.nav_icon
           icon="code"
           section="app"
           active={@active_section == "app"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "app", 0)}
         />
         <.nav_icon
           icon="megaphone"
           section="marketing"
           active={@active_section == "marketing"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "marketing", 0)}
         />
         <.nav_icon
           icon="funnel"
           section="funnel"
           active={@active_section == "funnel"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "funnel", 0)}
         />
         <.nav_icon
           icon="dollar"
           section="sales"
           active={@active_section == "sales"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "sales", 0)}
         />
         <.nav_icon
           icon="briefcase"
           section="hr"
           active={@active_section == "hr"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "hr", 0)}
         />
         <.nav_icon
           icon="customer_group"
           section="customers"
           active={@active_section == "customers"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "customers", 0)}
         />
       </div>
 
       <div class="flex flex-col space-y-3 mt-auto">
         <.nav_icon
-          icon="settings"
+          icon="terminal"
           section="terminal"
           active={@active_section == "terminal"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "terminal", 0)}
         />
         <.nav_icon
           icon="profile"
           section="account"
           active={@active_section == "account"}
-          notification_count={0}
+          notification_count={Map.get(@notification_counts, "account", 0)}
         />
       </div>
     </nav>

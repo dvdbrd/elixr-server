@@ -21,6 +21,7 @@ defmodule ShepherdWeb.HqLive.Index3 do
       |> assign(:triage_index, 0)
       |> assign(:command_input, "")
       |> assign(:user_id, user_id)
+      |> assign(:notification_counts, ContextManager.compute_notification_counts(user_id))
       |> assign_signals(user_id)
       |> assign_domain_pulse()
 
@@ -69,15 +70,10 @@ defmodule ShepherdWeb.HqLive.Index3 do
 
   @impl true
   def handle_event("triage_defer", _params, socket) do
+    # Defer moves to next signal without taking action (different from deploy which completes)
     signals = socket.assigns.signals
-    index = socket.assigns.triage_index
-
-    if index >= 0 and index < length(signals) do
-      # Defer just advances past the current item without changing its status
-      {:noreply, advance_triage(socket)}
-    else
-      {:noreply, assign(socket, :triage_index, 0)}
-    end
+    new_index = rem(socket.assigns.triage_index + 1, max(length(signals), 1))
+    {:noreply, assign(socket, :triage_index, new_index)}
   end
 
   @impl true
@@ -339,7 +335,7 @@ defmodule ShepherdWeb.HqLive.Index3 do
             <div class="text-xs text-green-400 opacity-80 mt-1">Trending positive</div>
           </div>
           <div>
-            <div class="text-2xl font-bold"><%= ops_active_count() %></div>
+            <div class="text-2xl font-bold"><%= ops_active_count(@signals) %></div>
             <div class="text-xs opacity-60 mt-1">OPS ACTIVE</div>
             <div class="text-xs opacity-60 mt-1">AI working</div>
           </div>
@@ -802,69 +798,65 @@ defmodule ShepherdWeb.HqLive.Index3 do
   end
 
   defp assign_domain_pulse(socket) do
-    pulse = [
-      %{
-        name: "Sales",
-        health: "critical",
-        active: 7,
-        pending: 12,
-        velocity: "declining",
-        velocity_symbol: "↗",
-        velocity_text: "Pipeline velocity slowing"
-      },
-      %{
-        name: "App",
-        health: "warning",
-        active: 3,
-        pending: 8,
-        velocity: "stable",
-        velocity_symbol: "→",
-        velocity_text: "Steady state"
-      },
-      %{
-        name: "Marketing",
-        health: "warning",
-        active: 2,
-        pending: 5,
-        velocity: "improving",
-        velocity_symbol: "↘",
-        velocity_text: "Performance improving"
-      },
-      %{
-        name: "Customers",
-        health: "healthy",
-        active: 4,
-        pending: 6,
-        velocity: "improving",
-        velocity_symbol: "↘",
-        velocity_text: "Response time decreasing"
-      },
-      %{
-        name: "Website",
-        health: "healthy",
-        active: 1,
-        pending: 3,
-        velocity: "stable",
-        velocity_symbol: "→",
-        velocity_text: "Normal operations"
-      },
-      %{
-        name: "HR",
-        health: "healthy",
-        active: 1,
-        pending: 2,
-        velocity: "stable",
-        velocity_symbol: "→",
-        velocity_text: "On track"
-      }
+    user_id = socket.assigns.user_id
+
+    counts =
+      from(c in Shepherd.Commands.Command,
+        where: c.user_id == ^user_id and c.status == "pending",
+        group_by: c.entity_type,
+        select: {c.entity_type, count(c.id)}
+      )
+      |> Shepherd.Repo.all()
+      |> Map.new()
+
+    domains = [
+      {"website", "Website"},
+      {"app", "App"},
+      {"marketing", "Marketing"},
+      {"funnel", "Funnel"},
+      {"sales", "Sales"},
+      {"hr", "HR"},
+      {"customers", "Customers"}
     ]
 
-    assign(socket, :domain_pulse, pulse)
+    domain_pulse =
+      Enum.map(domains, fn {key, label} ->
+        count = Map.get(counts, key, 0)
+
+        velocity =
+          cond do
+            count > 5 -> "surging"
+            count > 2 -> "active"
+            count > 0 -> "stable"
+            true -> "idle"
+          end
+
+        {velocity_symbol, velocity_text} =
+          case velocity do
+            "surging" -> {"↗↗", "High signal volume"}
+            "active" -> {"↗", "Commands queued"}
+            "stable" -> {"→", "Normal operations"}
+            _ -> {"–", "No pending signals"}
+          end
+
+        health = if count > 4, do: "warning", else: "nominal"
+
+        %{
+          name: label,
+          health: health,
+          active: count,
+          pending: count,
+          velocity: velocity,
+          velocity_symbol: velocity_symbol,
+          velocity_text: velocity_text
+        }
+      end)
+
+    assign(socket, :domain_pulse, domain_pulse)
   end
 
   defp update_domain_pulse(socket) do
-    # Simulate pulse updates (would be real data)
-    socket
+    assign_domain_pulse(socket)
   end
 
   defp advance_triage(socket) do
@@ -893,14 +885,16 @@ defmodule ShepherdWeb.HqLive.Index3 do
   end
 
   defp escalating_count(signals) do
-    Enum.count(signals, fn s -> s.velocity == "escalating" end)
+    Enum.count(signals, fn s -> s.severity in ["CRITICAL", "HIGH"] end)
   end
 
   defp improving_count(signals) do
-    Enum.count(signals, fn s -> s.velocity == "improving" end)
+    Enum.count(signals, fn s -> s.severity in ["MEDIUM"] end)
   end
 
-  defp ops_active_count, do: 4
+  defp ops_active_count(signals) do
+    Enum.count(signals, fn s -> s.severity in ["CRITICAL", "HIGH", "ELEVATED"] end)
+  end
 
   defp mode_button_class(current_mode, mode) do
     base = "px-3 py-1 border transition-all"

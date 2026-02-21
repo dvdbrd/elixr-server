@@ -38,3 +38,9 @@ config :phoenix, :plug_init_mode, :runtime
 # Enable helpful, but potentially expensive runtime checks
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
+
+# Disable rate limiting in tests
+config :shepherd, :rate_limiting_enabled, false
+
+# Disable Oban job processing in tests
+config :shepherd, Oban, testing: :manual

@@ -21,6 +21,7 @@ defmodule ShepherdWeb.HqLive.Index4 do
       |> assign(:page_title, "HQ - Manager Feedback")
       |> assign(:active_section, "hq")
       |> assign(:user_id, user_id)
+      |> assign(:notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(user_id))
       |> assign(:view_mode, "active")
       |> load_feedback()
       |> load_stats()
@@ -48,6 +49,7 @@ defmodule ShepherdWeb.HqLive.Index4 do
           socket
           |> load_feedback()
           |> load_stats()
+          |> refresh_notification_counts()
           |> put_flash(:info, "Feedback acknowledged")
 
         {:noreply, socket}
@@ -67,6 +69,7 @@ defmodule ShepherdWeb.HqLive.Index4 do
           socket
           |> load_feedback()
           |> load_stats()
+          |> refresh_notification_counts()
           |> put_flash(:info, "Feedback dismissed")
 
         {:noreply, socket}
@@ -257,6 +260,10 @@ defmodule ShepherdWeb.HqLive.Index4 do
   # ============================================================================
   # HELPER FUNCTIONS
   # ============================================================================
+
+  defp refresh_notification_counts(socket) do
+    assign(socket, :notification_counts, Shepherd.LLM.ContextManager.compute_notification_counts(socket.assigns.user_id))
+  end
 
   defp load_feedback(socket) do
     user_id = socket.assigns.user_id

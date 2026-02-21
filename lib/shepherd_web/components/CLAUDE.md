@@ -107,6 +107,7 @@ Custom SVG icon components for navigation and UI elements. All icons are stroke-
 | `funnel`         | Funnel/filter icon (Funnel)    |
 | `profile`        | Single user icon (Profile)     |
 | `settings`       | Gear/cog icon (Settings)       |
+| `terminal`       | Terminal/command line icon     |
 
 Fallback: unknown names render a plus/cross icon.
 
@@ -144,8 +145,8 @@ Fixed left sidebar navigation. Imports `ShepherdWeb.CustomIcons`.
 
 | Icon       | Section    | Path              |
 |------------|-----------|-------------------|
-| `settings` | `terminal`| `/terminal`       |
-| `profile`  | `account` | `/users/settings` |
+| `terminal` | `terminal` | `/terminal`       |
+| `profile`  | `account`  | `/users/settings` |
 
 #### Private Components
 

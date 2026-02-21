@@ -8,7 +8,7 @@ Instead of storing one large JSONB document per entity (the legacy `website_cont
 
 ## Integration Status
 
-**Schema-only -- no context module exists.** The `context_fragments` table has a schema (`Shepherd.Contexts.ContextFragment`) but there is no manager/context module (e.g., no `Shepherd.LLM.ContextManager`). `HqLive.Index3` aliases `Shepherd.LLM.ContextManager` which does not exist yet. This module is not wired into any LiveView or business logic.
+**Full CRUD via `Shepherd.Contexts` context module** at `lib/shepherd/contexts.ex`. Provides complete query and mutation operations for context fragments with user scoping, polymorphic entity lookup, and batch operations.
 
 ## Schemas
 
@@ -81,6 +81,24 @@ There are **no Ecto associations** defined in this schema. The relationships are
 
 - **user_id** -- References `users.id` (integer FK, `on_delete: :delete_all` at the DB level). No `belongs_to` in the schema.
 - **entity_type + entity_id** -- Polymorphic reference. No `belongs_to` in the schema. The owning entity (e.g., a `Website`) does not define a `has_many` for context fragments either.
+
+---
+
+## `Shepherd.Contexts` (Context Module)
+
+Context module providing full CRUD operations for context fragments with user scoping and polymorphic entity support.
+
+#### Functions
+
+- **`get_fragment/3`** -- Retrieves a single context fragment. Params: `(user_id, entity_type, entity_id)` or `(user_id, entity_type, entity_id, fragment_type)`. Returns `{:ok, fragment}` or `{:error, :not_found}`.
+- **`get_all_fragments/2`** -- Retrieves all fragments for an entity. Params: `(user_id, entity_type, entity_id)`. Returns list of fragments.
+- **`get_fragments_by_frequency/3`** -- Filters fragments by access frequency. Params: `(user_id, entity_type, frequency_level)`. Returns list of fragments.
+- **`upsert_fragment/2`** -- Creates or updates a context fragment. Params: `(user_id, attrs)`. Returns `{:ok, fragment}` or `{:error, changeset}`.
+- **`update_fragment/3`** -- Updates an existing fragment. Params: `(user_id, fragment_id, updates)`. Returns `{:ok, fragment}` or `{:error, :not_found}`.
+- **`delete_fragment/3`** -- Deletes a single fragment. Params: `(user_id, entity_type, fragment_type)`. Returns `{:ok, fragment}` or `{:error, :not_found}`.
+- **`delete_all_fragments/2`** -- Deletes all fragments for an entity. Params: `(user_id, entity_type, entity_id)`. Returns count of deleted records.
+- **`build_context/2`** -- Assembles all fragments for an entity into a single context map. Params: `(user_id, entity_id)`. Returns merged context map.
+- **`fragment_count/2`** -- Returns count of fragments for an entity. Params: `(user_id, entity_type, entity_id)`. Returns integer.
 
 ## Auto-Update Rules
 
