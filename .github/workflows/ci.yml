@@ -8,8 +8,8 @@ on:
 
 env:
   MIX_ENV: test
-  ELIXIR_VERSION: "1.15.7"
-  OTP_VERSION: "26.2.1"
+  ELIXIR_VERSION: "1.17.3"
+  OTP_VERSION: "27.2"
 
 jobs:
   test:
@@ -53,6 +53,18 @@ jobs:
       - name: Compile
         run: mix compile --warnings-as-errors
 
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Run Credo
+        run: mix credo --strict
+
+      - name: Security audit
+        run: mix sobelow --config
+
+      - name: Dependency audit
+        run: mix deps.audit
+
       - name: Run tests
         run: mix test
 
@@ -63,9 +75,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - run: flyctl deploy --remote-only
+      - name: Install Gigalixir CLI
+        run: pip install gigalixir
+
+      - name: Deploy to Gigalixir
+        run: |
+          gigalixir login -e "$GIGALIXIR_EMAIL" -p "$GIGALIXIR_PASSWORD" -y
+          gigalixir git:remote $GIGALIXIR_APP_NAME
+          git push -f gigalixir HEAD:refs/heads/main
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          GIGALIXIR_EMAIL: ${{ secrets.GIGALIXIR_EMAIL }}
+          GIGALIXIR_PASSWORD: ${{ secrets.GIGALIXIR_PASSWORD }}
+          GIGALIXIR_APP_NAME: ${{ secrets.GIGALIXIR_APP_NAME }}

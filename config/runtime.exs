@@ -30,13 +30,24 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
+  ssl_enabled = System.get_env("DATABASE_SSL") != "false"
+
+  ssl_opts =
+    if ssl_enabled do
+      if System.get_env("DATABASE_SSL_VERIFY") == "none" do
+        [verify: :verify_none]
+      else
+        [verify: :verify_peer, cacerts: :public_key.cacerts_get()]
+      end
+    else
+      []
+    end
+
   config :shepherd, Shepherd.Repo,
-    ssl: System.get_env("DATABASE_SSL") != "false",
-    ssl_opts: [verify: :verify_peer, cacerts: :public_key.cacerts_get()],
+    ssl: ssl_enabled,
+    ssl_opts: ssl_opts,
     url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    # For machines with several cores, consider starting multiple pools of `pool_size`
-    # pool_count: 4,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "2"),
     socket_options: maybe_ipv6
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
@@ -101,23 +112,20 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
-  # ## Configuring the mailer
-  #
-  # In production you need to configure the mailer to use a different adapter.
-  # Also, you may need to configure the Swoosh API client of your choice if you
-  # are not using SMTP. Here is an example of the configuration:
-  #
-  #     config :shepherd, Shepherd.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # For this example you need include a HTTP client required by Swoosh API client.
-  # Swoosh supports Hackney, Req and Finch out of the box:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Hackney
-  #
-  # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
+  # Configure the mailer for production
+  # Mailgun is optional — falls back to Logger adapter if not configured
+  mailgun_api_key = System.get_env("MAILGUN_API_KEY")
+  mailgun_domain = System.get_env("MAILGUN_DOMAIN")
+
+  if mailgun_api_key && mailgun_domain do
+    config :shepherd, Shepherd.Mailer,
+      adapter: Swoosh.Adapters.Mailgun,
+      api_key: mailgun_api_key,
+      domain: mailgun_domain
+  else
+    config :shepherd, Shepherd.Mailer,
+      adapter: Swoosh.Adapters.Logger
+  end
 end
 
 # Configure Anthropic API for all environments
@@ -132,5 +140,9 @@ config :shepherd, Oban,
   queues: [default: 10],
   plugins: [
     # Prune completed jobs after 24 hours
-    {Oban.Plugins.Pruner, max_age: 86_400}
+    {Oban.Plugins.Pruner, max_age: 86_400},
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"0 * * * *", Shepherd.Workers.ExpirationWorker}
+     ]}
   ]
