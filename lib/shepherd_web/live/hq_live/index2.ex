@@ -554,9 +554,8 @@ defmodule ShepherdWeb.HqLive.Index2 do
     assign(socket, :active_operations, operations)
   end
 
-  defp add_flash_message(socket, _type, _message) do
-    # Flash messages would be handled by Phoenix's flash system
-    socket
+  defp add_flash_message(socket, type, message) do
+    Phoenix.LiveView.put_flash(socket, type, message)
   end
 
   defp detect_domain(command) do

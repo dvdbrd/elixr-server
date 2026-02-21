@@ -4,7 +4,7 @@ defmodule ShepherdWeb.HqLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    user_id = 1
+    user_id = socket.assigns.current_scope.user.id
 
     socket =
       socket

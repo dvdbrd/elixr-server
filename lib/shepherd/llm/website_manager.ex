@@ -8,7 +8,6 @@ defmodule Shepherd.LLM.WebsiteManager do
   alias Shepherd.Repo
   alias Shepherd.Websites.{Website, WebsiteContext, UserQuestion}
   alias Shepherd.LLM.Directives
-  alias Shepherd.Workers.ScanWebsiteWorker
   require Logger
 
   @doc """

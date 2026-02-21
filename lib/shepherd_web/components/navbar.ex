@@ -15,7 +15,7 @@ defmodule ShepherdWeb.Navbar do
           icon="dashboard"
           section="hq"
           active={@active_section == "hq"}
-          notification_count={3}
+          notification_count={0}
         />
         <.nav_icon
           icon="globe"
@@ -27,13 +27,13 @@ defmodule ShepherdWeb.Navbar do
           icon="code"
           section="app"
           active={@active_section == "app"}
-          notification_count={12}
+          notification_count={0}
         />
         <.nav_icon
           icon="megaphone"
           section="marketing"
           active={@active_section == "marketing"}
-          notification_count={5}
+          notification_count={0}
         />
         <.nav_icon
           icon="funnel"
@@ -45,7 +45,7 @@ defmodule ShepherdWeb.Navbar do
           icon="dollar"
           section="sales"
           active={@active_section == "sales"}
-          notification_count={7}
+          notification_count={0}
         />
         <.nav_icon
           icon="briefcase"
@@ -57,7 +57,7 @@ defmodule ShepherdWeb.Navbar do
           icon="customer_group"
           section="customers"
           active={@active_section == "customers"}
-          notification_count={2}
+          notification_count={0}
         />
       </div>
 
@@ -72,7 +72,7 @@ defmodule ShepherdWeb.Navbar do
           icon="profile"
           section="account"
           active={@active_section == "account"}
-          notification_count={1}
+          notification_count={0}
         />
       </div>
     </nav>
@@ -131,7 +131,7 @@ defmodule ShepherdWeb.Navbar do
       "hr" -> "/hr"
       "customers" -> "/customers"
       "terminal" -> "/terminal"
-      "account" -> "/account"
+      "account" -> "/users/settings"
       _ -> "/"
     end
   end

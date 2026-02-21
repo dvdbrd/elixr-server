@@ -16,14 +16,11 @@ user =
   case Repo.get_by(User, email: "test@example.com") do
     nil ->
       {:ok, user} =
-        User.email_changeset(%User{}, %{
-          email: "test@example.com",
-          password: "password123"
-        })
+        %User{}
+        |> User.email_changeset(%{email: "test@example.com"})
+        |> User.password_changeset(%{password: "password12345"})
         |> Repo.insert()
-
       user
-
     user ->
       user
   end

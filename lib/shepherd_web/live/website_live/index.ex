@@ -8,8 +8,7 @@ defmodule ShepherdWeb.WebsiteLive.Index do
 
   @impl true
   def mount(params, _session, socket) do
-    # TODO: Get current_user from session - for now using user_id: 1
-    user_id = 1
+    user_id = socket.assigns.current_scope.user.id
 
     # Fetch the first website for this user
     website = Repo.one(from w in Website, where: w.user_id == ^user_id, limit: 1)

@@ -8,6 +8,10 @@
     accepted_offers={assigns[:accepted_offers]}
     flash={assigns[:flash] || %{}}
   >
-    {@inner_content}
+    <%= if assigns[:inner_content] do %>
+      {@inner_content}
+    <% else %>
+      {render_slot(@inner_block)}
+    <% end %>
   </.main_layout>
 </div>

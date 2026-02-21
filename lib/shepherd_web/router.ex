@@ -21,6 +21,7 @@ defmodule ShepherdWeb.Router do
     pipe_through :browser
 
     live_session :default,
+      on_mount: [{ShepherdWeb.UserAuth, :require_authenticated}],
       layout: {ShepherdWeb.Layouts, :app} do
       live "/", HqLive.Index, :index
       live "/hq2", HqLive.Index2, :index
@@ -38,9 +39,10 @@ defmodule ShepherdWeb.Router do
   end
 
   # Other scopes may use custom stacks.
-  # scope "/api", ShepherdWeb do
-  #   pipe_through :api
-  # end
+  scope "/api", ShepherdWeb do
+    pipe_through :api
+    get "/health", HealthController, :check
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:shepherd, :dev_routes) do
@@ -65,7 +67,8 @@ defmodule ShepherdWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :require_authenticated_user,
-      on_mount: [{ShepherdWeb.UserAuth, :require_authenticated}] do
+      on_mount: [{ShepherdWeb.UserAuth, :require_authenticated}],
+      layout: {ShepherdWeb.Layouts, :app} do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
     end
@@ -77,7 +80,8 @@ defmodule ShepherdWeb.Router do
     pipe_through [:browser]
 
     live_session :current_user,
-      on_mount: [{ShepherdWeb.UserAuth, :mount_current_scope}] do
+      on_mount: [{ShepherdWeb.UserAuth, :mount_current_scope}],
+      layout: false do
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new

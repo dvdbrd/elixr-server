@@ -108,13 +108,13 @@ defmodule Shepherd.LLM.CommandManager do
         group_by: c.status,
         select: {c.status, count(c.id)}
 
-    results = Repo.all(query)
+    results = Repo.all(query) |> Map.new()
 
     %{
-      pending: Keyword.get(results, "pending", 0),
-      completed: Keyword.get(results, "completed", 0),
-      dismissed: Keyword.get(results, "dismissed", 0),
-      overdue: Keyword.get(results, "overdue", 0)
+      pending: Map.get(results, "pending", 0),
+      completed: Map.get(results, "completed", 0),
+      dismissed: Map.get(results, "dismissed", 0),
+      overdue: Map.get(results, "overdue", 0)
     }
   end
 end

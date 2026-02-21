@@ -1,0 +1,31 @@
+# Ignore .fetch files and deps/ since mix deps.get is run in the build
+.fetch
+deps
+
+# Ignore _build since the build stage compiles from scratch
+_build
+
+# Ignore the database files
+*.db
+*.db-*
+
+# Ignore node_modules
+assets/node_modules
+
+# Ignore generated static files
+priv/static/assets
+priv/static/cache_manifest.json
+
+# General
+.DS_Store
+.elixir_ls
+.git
+.gitignore
+.dockerignore
+Dockerfile
+
+# Test and dev artifacts
+test
+.formatter.exs
+.env*
+*.md

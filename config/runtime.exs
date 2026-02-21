@@ -31,7 +31,8 @@ if config_env() == :prod do
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :shepherd, Shepherd.Repo,
-    # ssl: true,
+    ssl: System.get_env("DATABASE_SSL") != "false",
+    ssl_opts: [verify: :verify_none],
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     # For machines with several cores, consider starting multiple pools of `pool_size`
@@ -50,7 +51,7 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host = System.get_env("PHX_HOST") || raise "environment variable PHX_HOST is missing"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
   config :shepherd, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
@@ -65,7 +66,8 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    force_ssl: [hsts: true, rewrite_on: [:x_forwarded_proto]]
 
   # ## SSL Support
   #
@@ -129,6 +131,6 @@ config :shepherd, Oban,
   repo: Shepherd.Repo,
   queues: [default: 10],
   plugins: [
-    # Prune completed jobs after 60 seconds
-    {Oban.Plugins.Pruner, max_age: 60}
+    # Prune completed jobs after 24 hours
+    {Oban.Plugins.Pruner, max_age: 86_400}
   ]

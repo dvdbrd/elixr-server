@@ -10,9 +10,7 @@ defmodule ShepherdWeb.HqLive.Index3 do
       :timer.send_interval(2000, self(), :tick)
     end
 
-    # For now, hardcode user_id to 1 (from seed data)
-    # TODO: Replace with actual authenticated user
-    user_id = 1
+    user_id = socket.assigns.current_scope.user.id
 
     socket =
       socket
@@ -48,7 +46,7 @@ defmodule ShepherdWeb.HqLive.Index3 do
 
   @impl true
   def handle_event("focus_domain", %{"domain" => domain}, socket) do
-    new_domain = if socket.assigns.focused_domain == domain, do: nil, else: domain
+    new_domain = if domain in ["all", "clear"], do: nil, else: if(socket.assigns.focused_domain == domain, do: nil, else: domain)
     {:noreply, assign(socket, :focused_domain, new_domain)}
   end
 
@@ -66,7 +64,6 @@ defmodule ShepherdWeb.HqLive.Index3 do
 
     socket =
       socket
-      |> advance_triage()
       |> remove_current_signal()
 
     {:noreply, socket}
@@ -86,7 +83,6 @@ defmodule ShepherdWeb.HqLive.Index3 do
 
     socket =
       socket
-      |> advance_triage()
       |> remove_current_signal()
 
     {:noreply, socket}
@@ -128,7 +124,8 @@ defmodule ShepherdWeb.HqLive.Index3 do
   end
 
   @impl true
-  def handle_event("update_command", %{"value" => value}, socket) do
+  def handle_event("update_command", params, socket) do
+    value = params["value"] || params["command"] || ""
     {:noreply, assign(socket, :command_input, value)}
   end
 
@@ -716,7 +713,7 @@ defmodule ShepherdWeb.HqLive.Index3 do
       severity: severity,
       domain: extract_domain(command.command_text),
       title: String.slice(command.command_text, 0, 60),
-      description: command.reasoning || command.command_text,
+      description: command.llm_reasoning || command.command_text,
       impact: "Business",
       age: age,
       priority: priority,
