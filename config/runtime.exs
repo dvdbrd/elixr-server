@@ -113,18 +113,19 @@ if config_env() == :prod do
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
   # Configure the mailer for production
-  mailgun_api_key =
-    System.get_env("MAILGUN_API_KEY") ||
-      raise "environment variable MAILGUN_API_KEY is missing for production email delivery"
+  # Mailgun is optional — falls back to Logger adapter if not configured
+  mailgun_api_key = System.get_env("MAILGUN_API_KEY")
+  mailgun_domain = System.get_env("MAILGUN_DOMAIN")
 
-  mailgun_domain =
-    System.get_env("MAILGUN_DOMAIN") ||
-      raise "environment variable MAILGUN_DOMAIN is missing for production email delivery"
-
-  config :shepherd, Shepherd.Mailer,
-    adapter: Swoosh.Adapters.Mailgun,
-    api_key: mailgun_api_key,
-    domain: mailgun_domain
+  if mailgun_api_key && mailgun_domain do
+    config :shepherd, Shepherd.Mailer,
+      adapter: Swoosh.Adapters.Mailgun,
+      api_key: mailgun_api_key,
+      domain: mailgun_domain
+  else
+    config :shepherd, Shepherd.Mailer,
+      adapter: Swoosh.Adapters.Logger
+  end
 end
 
 # Configure Anthropic API for all environments
